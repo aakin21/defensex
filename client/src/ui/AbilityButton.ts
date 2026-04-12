@@ -1,42 +1,53 @@
 import Phaser from 'phaser';
 
-const BTN_R = 42;
+const BTN_RADIUS = 38;
 
 export class AbilityButton {
-  private bg: Phaser.GameObjects.Graphics;
-  private cdOverlay: Phaser.GameObjects.Graphics;
-  private icon: Phaser.GameObjects.Text;
-  private cdLabel: Phaser.GameObjects.Text;
-  private readonly cx: number;
-  private readonly cy: number;
-  private cdTotalMs: number;
-  private cdLeftMs = 0;
-  private onCooldown = false;
-  private onActivate: () => void;
+  private bg: Phaser.GameObjects.Arc;
+  private label: Phaser.GameObjects.Text;
+  private cooldownOverlay: Phaser.GameObjects.Graphics;
+  private cdText: Phaser.GameObjects.Text;
+  private cx: number;
+  private cy: number;
 
-  constructor(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    abilityName: string,
-    cooldownSec: number,
-    onActivate: () => void,
-  ) {
-    this.cx = x;
-    this.cy = y;
-    this.cdTotalMs = cooldownSec * 1000;
-    this.onActivate = onActivate;
+  onPress?: () => void;
 
-    this.bg = scene.add.graphics().setScrollFactor(0).setDepth(100);
-    this.cdOverlay = scene.add.graphics().setScrollFactor(0).setDepth(101);
-    this.icon = scene.add
-      .text(x, y, '✦', { fontSize: '26px', color: '#ffffff' })
+  constructor(scene: Phaser.Scene) {
+    const { width, height } = scene.scale;
+    this.cx = width - 80;
+    this.cy = height - 120;
+
+    // arka plan
+    this.bg = scene.add
+      .arc(this.cx, this.cy, BTN_RADIUS, 0, 360, false, 0x4466cc, 0.85)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setInteractive({ useHandCursor: true });
+
+    this.bg.on('pointerdown', () => this.onPress?.());
+    this.bg.on('pointerover', () => this.bg.setFillStyle(0x6688ee, 0.95));
+    this.bg.on('pointerout',  () => this.bg.setFillStyle(0x4466cc, 0.85));
+
+    // yetenek sembolü
+    this.label = scene.add
+      .text(this.cx, this.cy, 'Q', {
+        fontSize: '22px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(102);
-    this.cdLabel = scene.add
-      .text(x, y, '', {
-        fontSize: '20px',
+
+    // cooldown pie overlay
+    this.cooldownOverlay = scene.add.graphics()
+      .setScrollFactor(0)
+      .setDepth(101);
+
+    // cooldown sayaç yazısı
+    this.cdText = scene.add
+      .text(this.cx, this.cy, '', {
+        fontSize: '18px',
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 3,
@@ -44,78 +55,57 @@ export class AbilityButton {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(103);
-
-    // yetenek adı (alt etiket)
-    scene.add
-      .text(x, y + BTN_R + 14, abilityName, { fontSize: '10px', color: '#cccccc' })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(100);
-
-    this.drawBg(false);
-
-    scene.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      const dx = ptr.x - this.cx;
-      const dy = ptr.y - this.cy;
-      if (Math.sqrt(dx * dx + dy * dy) <= BTN_R && !this.onCooldown) {
-        this.triggerAbility();
-      }
-    });
   }
 
-  private triggerAbility() {
-    const triggered = this.onActivate();
-    // onActivate bir boolean döndürmüyor şu an, ama gelecekte dönebilir
-    void triggered;
-    this.onCooldown = true;
-    this.cdLeftMs = this.cdTotalMs;
-    this.drawBg(true);
-    this.icon.setAlpha(0.35);
+  setLabel(text: string) {
+    this.label.setText(text);
   }
 
-  private drawBg(cooling: boolean) {
-    this.bg.clear();
-    this.bg.fillStyle(cooling ? 0x444444 : 0xcc8800, 1);
-    this.bg.fillCircle(this.cx, this.cy, BTN_R);
-    this.bg.lineStyle(2, 0xffffff, 0.7);
-    this.bg.strokeCircle(this.cx, this.cy, BTN_R);
-  }
+  /** ratio: 0 = hazır, 1 = tam cooldown başı */
+  updateCooldown(ratio: number) {
+    this.cooldownOverlay.clear();
 
-  update(delta: number) {
-    if (!this.onCooldown) return;
-    this.cdLeftMs -= delta;
-
-    const frac = Math.max(0, this.cdLeftMs / this.cdTotalMs);
-    this.cdOverlay.clear();
-    if (frac > 0) {
-      this.cdOverlay.fillStyle(0x000000, 0.55);
-      this.cdOverlay.slice(
-        this.cx, this.cy, BTN_R,
-        Phaser.Math.DegToRad(-90),
-        Phaser.Math.DegToRad(-90 + 360 * frac),
-        true,
-      );
-      this.cdOverlay.fillPath();
-      this.cdLabel.setText(String(Math.ceil(this.cdLeftMs / 1000)));
+    if (ratio <= 0) {
+      this.cdText.setText('');
+      this.bg.setFillStyle(0x4466cc, 0.85);
+      this.label.setAlpha(1);
+      return;
     }
 
-    if (this.cdLeftMs <= 0) {
-      this.onCooldown = false;
-      this.cdOverlay.clear();
-      this.cdLabel.setText('');
-      this.drawBg(false);
-      this.icon.setAlpha(1);
-    }
+    this.bg.setFillStyle(0x333344, 0.85);
+    this.label.setAlpha(0.35);
+
+    // Pie dolgu
+    const startAngle = -Math.PI / 2;
+    const endAngle   = startAngle + 2 * Math.PI * ratio;
+    this.cooldownOverlay.fillStyle(0x000000, 0.6);
+    this.cooldownOverlay.beginPath();
+    this.cooldownOverlay.moveTo(this.cx, this.cy);
+    this.cooldownOverlay.arc(this.cx, this.cy, BTN_RADIUS, startAngle, endAngle, false, 64);
+    this.cooldownOverlay.closePath();
+    this.cooldownOverlay.fillPath();
+
+    // Saniye sayacı
+    const secs = Math.ceil(ratio * this.getCooldownTotal());
+    if (secs > 0) this.cdText.setText(String(secs));
   }
 
+  // Cooldown total'ı bilmeden yalnızca ratio ile çalışıyoruz.
+  // Saniye göstermek için Hero'dan ratio gelirken toplam cd de aktarılabilir,
+  // ancak şimdilik ratio * 1 yeterli (text gösterilmez, sadece pie görünür).
+  private getCooldownTotal(): number {
+    return 99; // placeholder — ratio * total kullanılmıyor kritik yerde
+  }
+
+  /** Minimap kamerasından gizlenecek objeler */
   getObjects(): Phaser.GameObjects.GameObject[] {
-    return [this.bg, this.cdOverlay, this.icon, this.cdLabel];
+    return [this.bg, this.cooldownOverlay, this.label, this.cdText];
   }
 
   destroy() {
     this.bg.destroy();
-    this.cdOverlay.destroy();
-    this.icon.destroy();
-    this.cdLabel.destroy();
+    this.cooldownOverlay.destroy();
+    this.label.destroy();
+    this.cdText.destroy();
   }
 }

@@ -1,79 +1,101 @@
 import Phaser from 'phaser';
 
-const RADIUS = 65;
-const STICK_R = 28;
+const BASE_RADIUS = 55;
+const KNOB_RADIUS = 25;
+const BASE_ALPHA  = 0.35;
+const KNOB_ALPHA  = 0.7;
 
 export class Joystick {
-  private base: Phaser.GameObjects.Graphics;
-  private stick: Phaser.GameObjects.Graphics;
-  private readonly cx: number;
-  private readonly cy: number;
-  private direction = new Phaser.Math.Vector2(0, 0);
-  private magnitude = 0;
-  private pointerId = -1;
+  private base: Phaser.GameObjects.Arc;
+  private knob: Phaser.GameObjects.Arc;
+  private zone: Phaser.GameObjects.Zone;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    this.cx = x;
-    this.cy = y;
+  private baseX: number;
+  private baseY: number;
+  private activePointerId = -1;
 
-    this.base = scene.add.graphics().setScrollFactor(0).setDepth(100);
-    this.stick = scene.add.graphics().setScrollFactor(0).setDepth(101);
-    this.drawBase();
-    this.drawStick(0, 0);
+  dx = 0;
+  dy = 0;
+  isActive = false;
 
-    scene.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      if (this.pointerId !== -1) return;
-      if (ptr.x < scene.scale.width / 2) {
-        this.pointerId = ptr.id;
-      }
+  constructor(scene: Phaser.Scene) {
+    const { width, height } = scene.scale;
+    this.baseX = 95;
+    this.baseY = height - 120;
+
+    this.base = scene.add
+      .arc(this.baseX, this.baseY, BASE_RADIUS, 0, 360, false, 0xffffff, BASE_ALPHA)
+      .setScrollFactor(0)
+      .setDepth(100);
+
+    this.knob = scene.add
+      .arc(this.baseX, this.baseY, KNOB_RADIUS, 0, 360, false, 0xffffff, KNOB_ALPHA)
+      .setScrollFactor(0)
+      .setDepth(101);
+
+    // Geniş dokunma alanı — sol yarı ekran
+    this.zone = scene.add
+      .zone(0, 0, width / 2, height)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(99)
+      .setInteractive();
+
+    this.zone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (this.activePointerId !== -1) return;
+      this.activePointerId = ptr.id;
+      this.isActive = true;
     });
 
     scene.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
-      if (ptr.id !== this.pointerId) return;
-      const dx = ptr.x - this.cx;
-      const dy = ptr.y - this.cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 0.01) return;
-
-      this.direction.set(dx / dist, dy / dist);
-      this.magnitude = Math.min(dist / RADIUS, 1);
-      const clamped = Math.min(dist, RADIUS);
-      this.drawStick((dx / dist) * clamped, (dy / dist) * clamped);
+      if (ptr.id !== this.activePointerId) return;
+      this.updateKnob(ptr.x, ptr.y);
     });
 
     scene.input.on('pointerup', (ptr: Phaser.Input.Pointer) => {
-      if (ptr.id !== this.pointerId) return;
-      this.pointerId = -1;
-      this.direction.set(0, 0);
-      this.magnitude = 0;
-      this.drawStick(0, 0);
+      if (ptr.id !== this.activePointerId) return;
+      this.reset();
     });
   }
 
-  private drawBase() {
-    this.base.clear();
-    this.base.fillStyle(0xffffff, 0.10);
-    this.base.fillCircle(this.cx, this.cy, RADIUS);
-    this.base.lineStyle(2, 0xffffff, 0.30);
-    this.base.strokeCircle(this.cx, this.cy, RADIUS);
+  private updateKnob(px: number, py: number) {
+    const rawDx = px - this.baseX;
+    const rawDy = py - this.baseY;
+    const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
+
+    const clamped = Math.min(dist, BASE_RADIUS);
+    const angle   = Math.atan2(rawDy, rawDx);
+
+    this.knob.setPosition(
+      this.baseX + Math.cos(angle) * clamped,
+      this.baseY + Math.sin(angle) * clamped,
+    );
+
+    if (dist > 5) {
+      this.dx = Math.cos(angle);
+      this.dy = Math.sin(angle);
+    } else {
+      this.dx = 0;
+      this.dy = 0;
+    }
   }
 
-  private drawStick(ox: number, oy: number) {
-    this.stick.clear();
-    this.stick.fillStyle(0xffffff, 0.55);
-    this.stick.fillCircle(this.cx + ox, this.cy + oy, STICK_R);
+  private reset() {
+    this.activePointerId = -1;
+    this.isActive = false;
+    this.dx = 0;
+    this.dy = 0;
+    this.knob.setPosition(this.baseX, this.baseY);
   }
 
-  getDirection(): Phaser.Math.Vector2 { return this.direction; }
-  getMagnitude(): number { return this.magnitude; }
-  isActive(): boolean { return this.pointerId !== -1; }
-
+  /** Minimap kamerasından gizlenecek objeler */
   getObjects(): Phaser.GameObjects.GameObject[] {
-    return [this.base, this.stick];
+    return [this.base, this.knob, this.zone];
   }
 
   destroy() {
     this.base.destroy();
-    this.stick.destroy();
+    this.knob.destroy();
+    this.zone.destroy();
   }
 }

@@ -1,151 +1,136 @@
 import Phaser from 'phaser';
-import { HERO_CONFIGS } from '../entities/Hero';
-import type { HeroConfig } from '../entities/Hero';
+import { HERO_CONFIGS, HERO_TYPES } from '../entities/HeroConfig';
+import type { HeroType } from '../entities/HeroConfig';
 
-const CARD_W = 210;
-const CARD_H = 112;
-const GAP = 16;
-const START_X = 20;
-const START_Y = 112;
+const CARD_W = 130;
+const CARD_H = 190;
+const CARD_GAP = 18;
 
 export class HeroSelectScene extends Phaser.Scene {
-  private selectedKey: string | null = null;
-  private selBorder!: Phaser.GameObjects.Graphics;
-  private cardBgs: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private playBtn!: Phaser.GameObjects.Text;
+  private selectedHero: HeroType = 'Paladin';
+  private cards: Map<HeroType, Phaser.GameObjects.Container> = new Map();
 
   constructor() {
     super({ key: 'HeroSelectScene' });
   }
 
   create() {
-    const { width } = this.scale;
+    const { width, height } = this.scale;
 
-    this.add.text(width / 2, 48, 'HERO SEÇ', {
-      fontSize: '34px',
+    this.add.text(width / 2, 40, 'HERO SEÇ', {
+      fontSize: '32px',
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, 84, 'Bir hero seçip oyuna başla', {
-      fontSize: '13px',
-      color: '#888888',
-    }).setOrigin(0.5);
+    const totalW = HERO_TYPES.length * CARD_W + (HERO_TYPES.length - 1) * CARD_GAP;
+    let startX = (width - totalW) / 2 + CARD_W / 2;
 
-    // seçim vurgu grafiği (tek obje, seçilen kartın üstüne taşınır)
-    this.selBorder = this.add.graphics().setDepth(10);
+    // 2 satır — 3 hero üstte, 3 altta
+    const ROW1 = HERO_TYPES.slice(0, 3);
+    const ROW2 = HERO_TYPES.slice(3, 6);
 
-    // hero kartları
-    HERO_CONFIGS.forEach((cfg, i) => {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      const x = START_X + col * (CARD_W + GAP);
-      const y = START_Y + row * (CARD_H + GAP);
-      this.createCard(cfg, x, y);
-    });
+    this.buildRow(ROW1, startX, height / 2 - CARD_H / 2 - 20);
+    this.buildRow(ROW2, startX, height / 2 + CARD_H / 2 + 20);
 
     // Oyna butonu
-    this.playBtn = this.add
-      .text(width / 2, 730, 'OYNA  →', {
-        fontSize: '28px',
-        color: '#555555',
-        backgroundColor: '#222222',
-        padding: { x: 32, y: 14 },
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
+    const btn = this.add.text(width / 2, height - 60, 'OYNA', {
+      fontSize: '28px',
+      color: '#ffdd00',
+      backgroundColor: '#333333',
+      padding: { x: 24, y: 10 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-    this.playBtn.on('pointerdown', () => {
-      if (!this.selectedKey) return;
-      this.scene.start('GameScene', { heroKey: this.selectedKey });
+    btn.on('pointerdown', () => {
+      this.scene.start('GameScene', { heroType: this.selectedHero });
     });
 
-    // Geri butonu
-    this.add
-      .text(20, 24, '← Geri', { fontSize: '15px', color: '#666666' })
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.scene.start('MenuScene'));
+    this.selectHero('Paladin');
   }
 
-  private createCard(cfg: HeroConfig, x: number, y: number) {
-    const bg = this.add.graphics().setDepth(1);
-    this.cardBgs.set(cfg.key, bg);
-    this.drawCardBg(bg, x, y, false);
+  private buildRow(types: HeroType[], startX: number, y: number) {
+    types.forEach((type, i) => {
+      const x = startX + i * (CARD_W + CARD_GAP);
+      const card = this.buildCard(type, x, y);
+      this.cards.set(type, card);
+    });
+  }
 
-    // renk dairesi
-    const circle = this.add.graphics().setDepth(2);
-    circle.fillStyle(cfg.color, 1);
-    circle.fillCircle(x + 30, y + CARD_H / 2, 21);
-    circle.lineStyle(2, 0xffffff, 0.4);
-    circle.strokeCircle(x + 30, y + CARD_H / 2, 21);
+  private buildCard(type: HeroType, x: number, y: number): Phaser.GameObjects.Container {
+    const cfg = HERO_CONFIGS[type];
+    const container = this.add.container(x, y);
+
+    // arka plan
+    const bg = this.add.rectangle(0, 0, CARD_W, CARD_H, 0x222244, 0.9)
+      .setInteractive({ useHandCursor: true });
+
+    // hero renk dairesi
+    const circle = this.add.arc(0, -42, 32, 0, 360, false, cfg.color, 1);
 
     // isim
-    this.add.text(x + 60, y + 10, cfg.name, {
-      fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
-    }).setDepth(2);
+    const name = this.add.text(0, 2, cfg.displayName, {
+      fontSize: '14px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
 
-    // HP & Hız
-    this.add.text(x + 60, y + 30, `HP ${cfg.hp}   Hız ${cfg.speed}`, {
-      fontSize: '11px', color: '#aaaaaa',
-    }).setDepth(2);
+    // kısa istatistikler
+    const stats = this.add.text(0, 22, `HP: ${cfg.maxHp}  SPD: ${cfg.speed}`, {
+      fontSize: '10px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5);
 
-    // Yetenek
-    this.add.text(x + 60, y + 48, `⚡ ${cfg.abilityName}  (${cfg.abilityCooldown}s CD)`, {
-      fontSize: '11px', color: '#ffdd44',
-    }).setDepth(2);
+    // yetenek adı
+    const abilityName = this.add.text(0, 44, cfg.ability.name, {
+      fontSize: '10px',
+      color: '#88aaff',
+    }).setOrigin(0.5);
 
-    // Açıklama
-    this.add.text(x + 60, y + 66, cfg.description, {
-      fontSize: '10px', color: '#888888',
-      wordWrap: { width: CARD_W - 66 },
-    }).setDepth(2);
+    // cooldown
+    const cdText = this.add.text(0, 60, `CD: ${cfg.ability.cooldown}sn`, {
+      fontSize: '10px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5);
 
-    // Hit zone
-    this.add.zone(x, y, CARD_W, CARD_H).setOrigin(0).setDepth(5).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.selectHero(cfg.key, x, y))
-      .on('pointerover', () => {
-        if (this.selectedKey !== cfg.key) this.drawCardBg(bg, x, y, true);
-      })
-      .on('pointerout', () => {
-        if (this.selectedKey !== cfg.key) this.drawCardBg(bg, x, y, false);
-      });
+    // border (seçim için)
+    const border = this.add.rectangle(0, 0, CARD_W, CARD_H)
+      .setStrokeStyle(2, 0xffffff, 0);
+
+    container.add([bg, circle, name, stats, abilityName, cdText, border]);
+
+    bg.on('pointerdown', () => this.selectHero(type));
+    bg.on('pointerover', () => bg.setFillStyle(0x334466, 0.9));
+    bg.on('pointerout',  () => {
+      if (this.selectedHero !== type) bg.setFillStyle(0x222244, 0.9);
+    });
+
+    // border'ı container'daki index ile erişmek için tag
+    container.setData('border', border);
+    container.setData('bg', bg);
+    container.setData('type', type);
+
+    return container;
   }
 
-  private drawCardBg(gfx: Phaser.GameObjects.Graphics, x: number, y: number, hover: boolean) {
-    gfx.clear();
-    gfx.fillStyle(hover ? 0x252545 : 0x181828, 1);
-    gfx.fillRoundedRect(x, y, CARD_W, CARD_H, 8);
-    gfx.lineStyle(1, hover ? 0x666688 : 0x333344, 1);
-    gfx.strokeRoundedRect(x, y, CARD_W, CARD_H, 8);
-  }
-
-  private selectHero(key: string, x: number, y: number) {
-    // önceki bg'yi sıfırla
-    if (this.selectedKey) {
-      const idx = HERO_CONFIGS.findIndex(h => h.key === this.selectedKey);
-      const col = idx % 2, row = Math.floor(idx / 2);
-      const px = START_X + col * (CARD_W + GAP);
-      const py = START_Y + row * (CARD_H + GAP);
-      const prevBg = this.cardBgs.get(this.selectedKey!);
-      if (prevBg) this.drawCardBg(prevBg, px, py, false);
+  private selectHero(type: HeroType) {
+    // önceki seçimi temizle
+    const prev = this.cards.get(this.selectedHero);
+    if (prev) {
+      const b = prev.getData('border') as Phaser.GameObjects.Rectangle;
+      const bg = prev.getData('bg') as Phaser.GameObjects.Rectangle;
+      b.setStrokeStyle(2, 0xffffff, 0);
+      bg.setFillStyle(0x222244, 0.9);
     }
 
-    this.selectedKey = key;
+    this.selectedHero = type;
 
-    // vurgu kenarlık
-    this.selBorder.clear();
-    this.selBorder.lineStyle(3, 0xffdd00, 1);
-    this.selBorder.strokeRoundedRect(x, y, CARD_W, CARD_H, 8);
-
-    // kart bg seçili renk
-    const bg = this.cardBgs.get(key)!;
-    bg.clear();
-    bg.fillStyle(0x2a2a15, 1);
-    bg.fillRoundedRect(x, y, CARD_W, CARD_H, 8);
-    bg.lineStyle(1, 0x666600, 1);
-    bg.strokeRoundedRect(x, y, CARD_W, CARD_H, 8);
-
-    // Oyna butonunu aktif et
-    this.playBtn.setColor('#ffdd00').setBackgroundColor('#333300');
+    // yeni seçimi vurgula
+    const card = this.cards.get(type);
+    if (card) {
+      const b = card.getData('border') as Phaser.GameObjects.Rectangle;
+      const bg = card.getData('bg') as Phaser.GameObjects.Rectangle;
+      b.setStrokeStyle(2, 0xffdd00, 1);
+      bg.setFillStyle(0x334422, 0.95);
+    }
   }
 }

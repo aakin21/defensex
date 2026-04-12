@@ -20,21 +20,21 @@
 - [x] Minimap (sağ alt, 150x150px)
 
 ### Faz 3 — Hero
-- [x] Hero base sınıfı
-- [x] Sol joystick hareketi (mobil)
-- [x] Otomatik yakın dövüş saldırısı (tryAutoAttack — düşman state gelince bağlanacak)
+- [x] Hero base sınıfı (Container tabanlı, HeroConfig.ts ayrı dosya)
+- [x] Sol joystick hareketi (mobil, Arc tabanlı Joystick.ts)
+- [x] Otomatik yakın dövüş saldırısı (tryAttack, menzil tabanlı)
 - [x] 6 hero görseli + stat farklılıkları (placeholder renkli daireler)
-- [x] Hero yetenek butonu + cooldown animasyonu (pie)
-- [x] Hero ölüm + respawn görsel efekti (10sn timer)
-- [x] Hero seçim ekranı
+- [x] Hero yetenek butonu + cooldown animasyonu (pie overlay, AbilityButton.ts)
+- [x] Hero ölüm + respawn görsel efekti (10sn countdown, respawn tween)
+- [x] Hero seçim ekranı (HeroSelectScene.ts)
 
 ### Faz 4 — Bina & Duvar
-- [ ] Free placement sistemi (parmakla koy)
-- [ ] Duvar serbest çizim mekaniği (sürükle → segmentler çizilir)
-- [ ] Okçu Kulesi görseli + ateş animasyonu
-- [ ] Havan Topu görseli + AoE animasyonu
-- [ ] Lazer Kulesi görseli + ışın efekti
-- [ ] Bina upgrade UI
+- [x] Free placement sistemi (ghost önizleme, tap to place)
+- [x] Duvar serbest çizim mekaniği (sürükle → 64px segmentler, altın yetersizse kısalt)
+- [x] Okçu Kulesi görseli + saldırı efekti (placeholder)
+- [x] Havan Topu görseli + AoE saldırı
+- [x] Lazer Kulesi görseli + sürekli ışın efekti
+- [x] Bina upgrade UI (UpgradePopup, tap to open)
 - [ ] ⏳ BEKLE: Claude → satın alma mesajları server'da hazır olsun
 
 ### Faz 5 — Düşman Görseli
@@ -89,4 +89,5 @@ _(diğer fazlar server tarafı tarafından güncellenir)_
 |---|---|
 | 2026-04-13 | Client iskeleti kuruldu (Phaser + Vite + Capacitor) |
 | 2026-04-13 | Faz 2 bitti: harita sistemi, terrain renkleri, kamera drag, pinch-zoom, minimap |
-| 2026-04-13 | Faz 3 bitti: Hero entity (6 hero), Joystick, AbilityButton (cooldown pie), HeroSelectScene, ölüm+respawn |
+| 2026-04-13 | Faz 3 bitti: Hero (Container, 6 hero), Joystick, AbilityButton (pie), HeroSelectScene, respawn efekti |
+| 2026-04-13 | Faz 4 bitti: bina sistemi, duvar çizimi, upgrade popup, ekonomi sistemi |

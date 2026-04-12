@@ -1,146 +1,47 @@
 import Phaser from 'phaser';
-import { MapSystem, MAP_WIDTH, MAP_HEIGHT } from '../systems/MapSystem';
+import type { HeroConfig, AbilityConfig } from './HeroConfig';
+import { MapSystem } from '../systems/MapSystem';
+import { MAP_WIDTH, MAP_HEIGHT } from '../systems/MapSystem';
 
-export interface HeroConfig {
-  key: string;
-  name: string;
-  description: string;
-  color: number;
+const RESPAWN_TIME = 10000; // 10 saniye (ms)
+
+export class Hero extends Phaser.GameObjects.Container {
+  readonly config: HeroConfig;
+
   hp: number;
-  speed: number;
-  attackDamage: number;
-  attackRange: number;
-  attackSpeed: number;   // saniye cinsinden iki vuruş arası
-  abilityName: string;
-  abilityCooldown: number;  // saniye
-  abilityDuration: number;  // saniye (0 = anlık)
-  abilityAoeRange: number;  // piksel (0 = AoE yok)
-}
+  isDead = false;
+  isShielded = false;       // Şövalye kalkan
+  damageMultiplier = 1;     // Barbar öfke
+  speedMultiplier = 1;      // Ranger rüzgar koşusu
 
-export const HERO_CONFIGS: HeroConfig[] = [
-  {
-    key: 'paladin',
-    name: 'Paladin',
-    description: 'Etraftaki dost birimlere HP regen sağlar',
-    color: 0xf0e68c,
-    hp: 300,
-    speed: 120,
-    attackDamage: 25,
-    attackRange: 60,
-    attackSpeed: 1.2,
-    abilityName: 'Kutsal Aura',
-    abilityCooldown: 15,
-    abilityDuration: 3,
-    abilityAoeRange: 150,
-  },
-  {
-    key: 'knight',
-    name: 'Şövalye',
-    description: '4 sn boyunca hiç hasar almaz',
-    color: 0x7eb8f7,
-    hp: 450,
-    speed: 80,
-    attackDamage: 40,
-    attackRange: 70,
-    attackSpeed: 2.0,
-    abilityName: 'Kalkan Duvarı',
-    abilityCooldown: 20,
-    abilityDuration: 4,
-    abilityAoeRange: 0,
-  },
-  {
-    key: 'barbar',
-    name: 'Barbar',
-    description: '5 sn boyunca 2x hasar verir',
-    color: 0xe05c5c,
-    hp: 200,
-    speed: 110,
-    attackDamage: 35,
-    attackRange: 65,
-    attackSpeed: 1.3,
-    abilityName: 'Öfke',
-    abilityCooldown: 18,
-    abilityDuration: 5,
-    abilityAoeRange: 0,
-  },
-  {
-    key: 'ranger',
-    name: 'Ranger',
-    description: '200px çevredeki dostların hızını x1.5 yapar',
-    color: 0x5cde89,
-    hp: 120,
-    speed: 200,
-    attackDamage: 12,
-    attackRange: 55,
-    attackSpeed: 0.5,
-    abilityName: 'Rüzgar Koşusu',
-    abilityCooldown: 15,
-    abilityDuration: 5,
-    abilityAoeRange: 200,
-  },
-  {
-    key: 'mage',
-    name: 'Büyücü',
-    description: '100px AoE anlık yüksek hasar',
-    color: 0xb07ee0,
-    hp: 120,
-    speed: 110,
-    attackDamage: 20,
-    attackRange: 60,
-    attackSpeed: 1.0,
-    abilityName: 'Büyü Patlaması',
-    abilityCooldown: 12,
-    abilityDuration: 0,
-    abilityAoeRange: 100,
-  },
-  {
-    key: 'druid',
-    name: 'Druid',
-    description: '150px çevredeki dostların max HP\'ini %30 artırır',
-    color: 0x7cc97c,
-    hp: 200,
-    speed: 120,
-    attackDamage: 10,
-    attackRange: 55,
-    attackSpeed: 0.7,
-    abilityName: 'Doğanın Gücü',
-    abilityCooldown: 20,
-    abilityDuration: 10,
-    abilityAoeRange: 150,
-  },
-];
-
-const RESPAWN_MS = 10_000;
-
-export class Hero extends Phaser.Physics.Arcade.Sprite {
-  private cfg: HeroConfig;
-  private currentHp: number;
-  private dead = false;
-  private respawnTimer = 0;
-  private attackTimer = 0;
-  private abilityActive = false;
-  private abilityTimer = 0;
-  private invincible = false;
-  private dmgMultiplier = 1;
-
+  private mapSystem: MapSystem;
+  private bodyShape!: Phaser.GameObjects.Arc;
+  private dirIndicator!: Phaser.GameObjects.Triangle;
   private hpBar!: Phaser.GameObjects.Graphics;
+  private nameTag!: Phaser.GameObjects.Text;
+
+  // Ability görselleri — world coords, container dışında
   private abilityRing!: Phaser.GameObjects.Graphics;
   private respawnText!: Phaser.GameObjects.Text;
+  private respawnTimer = 0;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, config: HeroConfig) {
-    super(scene, x, y, config.key + '_hero');
-    scene.add.existing(this);
-    scene.physics.add.existing(this);
+  private attackTimer = 0;
+  private abilityCooldownRemaining = 0;
+  private abilityActiveRemaining = 0;
 
-    this.cfg = config;
-    this.currentHp = config.hp;
+  // callback'ler — GameScene tarafından atanır
+  onAbilityUse?: (ability: AbilityConfig, hero: Hero) => void;
+  onDeath?: (hero: Hero) => void;
 
-    const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setCollideWorldBounds(true);
-    body.setCircle(20, 4, 4);
-    this.setDepth(20);
+  constructor(scene: Phaser.Scene, x: number, y: number, config: HeroConfig, mapSystem: MapSystem) {
+    super(scene, x, y);
+    this.config = config;
+    this.hp = config.maxHp;
+    this.mapSystem = mapSystem;
 
-    this.hpBar = scene.add.graphics().setDepth(21);
+    this.buildGraphics();
+
+    // Dünya koordinatlarında (container dışı) objeler
     this.abilityRing = scene.add.graphics().setDepth(19);
     this.respawnText = scene.add
       .text(x, y - 50, '', {
@@ -152,12 +53,179 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
       .setOrigin(0.5)
       .setDepth(23)
       .setVisible(false);
+
+    scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
+    this.setDepth(20);
   }
 
-  // ---- her frame çağrılır ----
+  private buildGraphics() {
+    // gövde dairesi
+    this.bodyShape = this.scene.add.arc(0, 0, 20, 0, 360, false, this.config.color, 1);
 
-  update(delta: number, _mapSystem: MapSystem) {
-    if (this.dead) {
+    // yön göstergesi (küçük üçgen sağda)
+    this.dirIndicator = this.scene.add.triangle(22, 0, 0, -6, 10, 0, 0, 6, 0xffffff, 0.9);
+
+    // HP bar (hero üstünde, container içinde sol-üst hizalı)
+    this.hpBar = this.scene.add.graphics();
+    this.hpBar.setPosition(-24, -34);
+
+    // isim etiketi
+    this.nameTag = this.scene.add.text(0, -44, this.config.displayName, {
+      fontSize: '11px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+
+    this.add([this.bodyShape, this.dirIndicator, this.hpBar, this.nameTag]);
+  }
+
+  // ---- hareket ----
+
+  move(dx: number, dy: number, delta: number) {
+    if (this.isDead) return;
+
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return;
+
+    const nx = dx / len;
+    const ny = dy / len;
+    const terrainSpeed = this.mapSystem.getSpeedAt(this.x, this.y);
+    const speed = this.config.speed * terrainSpeed * this.speedMultiplier;
+    const dt = delta / 1000;
+
+    const newX = Phaser.Math.Clamp(this.x + nx * speed * dt, 0, MAP_WIDTH);
+    const newY = Phaser.Math.Clamp(this.y + ny * speed * dt, 0, MAP_HEIGHT);
+
+    if (this.mapSystem.isPassable(newX, newY)) {
+      this.x = newX;
+      this.y = newY;
+    }
+
+    // yön göstergesini döndür
+    const angle = Math.atan2(ny, nx) * (180 / Math.PI);
+    this.dirIndicator.setAngle(angle);
+  }
+
+  // ---- saldırı ----
+
+  tryAttack(enemies: { x: number; y: number; takeDamage: (n: number) => void }[], delta: number) {
+    if (this.isDead) return;
+    this.attackTimer -= delta;
+    if (this.attackTimer > 0) return;
+
+    const range = this.config.attackRange;
+    let nearest: typeof enemies[0] | null = null;
+    let nearestDist = Infinity;
+
+    for (const e of enemies) {
+      const d = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
+      if (d <= range && d < nearestDist) {
+        nearest = e;
+        nearestDist = d;
+      }
+    }
+
+    if (nearest) {
+      nearest.takeDamage(this.config.damage * this.damageMultiplier);
+      this.attackTimer = this.config.attackSpeed * 1000;
+      this.showAttackFlash();
+    }
+  }
+
+  private showAttackFlash() {
+    this.bodyShape.setFillStyle(0xffffff, 1);
+    this.scene.time.delayedCall(80, () => {
+      if (!this.isDead) this.bodyShape.setFillStyle(this.config.color, 1);
+    });
+  }
+
+  // ---- yetenek ----
+
+  useAbility() {
+    if (this.isDead || this.abilityCooldownRemaining > 0) return;
+    this.abilityCooldownRemaining = this.config.ability.cooldown * 1000;
+    this.abilityActiveRemaining = this.config.ability.duration * 1000;
+    this.onAbilityUse?.(this.config.ability, this);
+    this.playAbilityVisual();
+  }
+
+  private playAbilityVisual() {
+    const ability = this.config.ability;
+
+    if (ability.id === 'buyu_patlamasi') {
+      // Anlık AoE flash
+      const flash = this.scene.add.graphics().setDepth(25);
+      flash.fillStyle(0xaa44ff, 0.5);
+      flash.fillCircle(this.x, this.y, ability.radius);
+      flash.lineStyle(3, 0xdd88ff, 1);
+      flash.strokeCircle(this.x, this.y, ability.radius);
+      this.scene.tweens.add({
+        targets: flash, alpha: 0, scaleX: 1.3, scaleY: 1.3,
+        duration: 500, ease: 'Cubic.Out',
+        onComplete: () => flash.destroy(),
+      });
+    } else if (ability.id === 'kalkan_duvari') {
+      this.bodyShape.setFillStyle(0x4488ff, 1);
+    } else if (ability.id === 'ofke') {
+      this.bodyShape.setFillStyle(0xff2200, 1);
+    }
+    // AoE halka (paladin, ranger, druid) update()'da çiziliyor
+  }
+
+  getAbilityCooldownRatio(): number {
+    if (this.config.ability.cooldown === 0) return 0;
+    return this.abilityCooldownRemaining / (this.config.ability.cooldown * 1000);
+  }
+
+  // ---- hasar & ölüm ----
+
+  takeDamage(amount: number) {
+    if (this.isDead || this.isShielded) return;
+    this.hp = Math.max(0, this.hp - amount);
+
+    // hasar flash
+    this.bodyShape.setFillStyle(0xff4444, 1);
+    this.scene.time.delayedCall(120, () => {
+      if (!this.isDead) this.bodyShape.setFillStyle(this.config.color, 1);
+    });
+
+    if (this.hp === 0) this.die();
+  }
+
+  private die() {
+    this.isDead = true;
+    this.respawnTimer = RESPAWN_TIME;
+    this.setAlpha(0.3);
+    this.abilityRing.clear();
+    this.onDeath?.(this);
+  }
+
+  private doRespawn() {
+    this.isDead = false;
+    this.hp = this.config.maxHp;
+    this.isShielded = false;
+    this.damageMultiplier = 1;
+    this.speedMultiplier = 1;
+    this.abilityRing.clear();
+    this.respawnText.setVisible(false);
+    this.bodyShape.setFillStyle(this.config.color, 1);
+
+    // base yakınına respawn
+    this.setPosition(MAP_WIDTH / 2, MAP_HEIGHT / 2 + 90);
+    this.setAlpha(0);
+    this.setScale(0.5);
+    this.scene.tweens.add({
+      targets: this,
+      alpha: 1, scaleX: 1, scaleY: 1,
+      duration: 500, ease: 'Back.Out',
+    });
+  }
+
+  // ---- güncelleme ----
+
+  update(delta: number) {
+    if (this.isDead) {
       this.respawnTimer -= delta;
       const secs = Math.max(0, Math.ceil(this.respawnTimer / 1000));
       this.respawnText
@@ -165,201 +233,69 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
         .setPosition(this.x, this.y - 50)
         .setVisible(true);
       if (this.respawnTimer <= 0) this.doRespawn();
-      this.hpBar.clear();
-      this.abilityRing.clear();
       return;
     }
 
     this.respawnText.setVisible(false);
-    this.drawHpBar();
 
-    if (this.abilityActive) {
-      this.abilityTimer -= delta;
-      this.drawAbilityRing();
-      if (this.abilityTimer <= 0) {
-        this.abilityActive = false;
-        this.invincible = false;
-        this.dmgMultiplier = 1;
+    // Cooldown sayaçları
+    if (this.abilityCooldownRemaining > 0) {
+      this.abilityCooldownRemaining = Math.max(0, this.abilityCooldownRemaining - delta);
+    }
+    if (this.abilityActiveRemaining > 0) {
+      this.abilityActiveRemaining = Math.max(0, this.abilityActiveRemaining - delta);
+
+      // AoE halka görselini hero pozisyonunda güncelle
+      const ability = this.config.ability;
+      if (ability.radius > 0 && ability.id !== 'buyu_patlamasi') {
+        const ringColors: Record<string, number> = {
+          kutsal_aura: 0xffdd44,
+          ruzgar_kosusu: 0x44ffaa,
+          doga_gucu: 0x66ff66,
+        };
+        const col = ringColors[ability.id] ?? 0xffffff;
         this.abilityRing.clear();
+        this.abilityRing.lineStyle(2, col, 0.45);
+        this.abilityRing.strokeCircle(this.x, this.y, ability.radius);
       }
-    }
 
-    if (this.attackTimer > 0) this.attackTimer -= delta;
-  }
-
-  // ---- hareket ----
-
-  move(dirX: number, dirY: number, magnitude: number, mapSystem: MapSystem) {
-    if (this.dead) return;
-    if (magnitude > 0.05) {
-      const terrainMult = mapSystem.getSpeedAt(this.x, this.y);
-      let speed = this.cfg.speed * terrainMult * magnitude;
-      if (this.abilityActive && this.cfg.key === 'ranger') speed *= 1.5;
-      this.setVelocity(dirX * speed, dirY * speed);
-      if (Math.abs(dirX) > 0.1) this.setFlipX(dirX < 0);
+      if (this.abilityActiveRemaining === 0) {
+        this.onAbilityExpire();
+      }
     } else {
-      this.setVelocity(0, 0);
-    }
-  }
-
-  // ---- savaş ----
-
-  takeDamage(amount: number) {
-    if (this.dead || this.invincible) return;
-    this.currentHp = Math.max(0, this.currentHp - amount);
-    this.setTint(0xff4444);
-    this.scene.time.delayedCall(120, () => this.clearTint());
-    if (this.currentHp === 0) this.die();
-  }
-
-  heal(amount: number) {
-    if (this.dead) return;
-    this.currentHp = Math.min(this.cfg.hp, this.currentHp + amount);
-  }
-
-  /** true dönerse saldırı tetiklendi, hasar uygulanabilir */
-  tryAutoAttack(): boolean {
-    if (this.dead || this.attackTimer > 0) return false;
-    this.attackTimer = this.cfg.attackSpeed * 1000;
-    return true;
-  }
-
-  getEffectiveDamage(): number {
-    return this.cfg.attackDamage * this.dmgMultiplier;
-  }
-
-  // ---- yetenek ----
-
-  activateAbility(): boolean {
-    if (this.dead || this.abilityActive) return false;
-
-    switch (this.cfg.key) {
-      case 'mage':
-        // Anlık AoE: görsel flash, hasar server-side
-        this.showMageFlash();
-        return true;
-
-      case 'knight':
-        this.invincible = true;
-        break;
-
-      case 'barbar':
-        this.dmgMultiplier = 2;
-        break;
+      this.abilityRing.clear();
     }
 
-    if (this.cfg.abilityDuration > 0) {
-      this.abilityActive = true;
-      this.abilityTimer = this.cfg.abilityDuration * 1000;
-      this.drawAbilityRing();
-    }
-    return true;
+    this.updateHpBar();
   }
 
-  // ---- ölüm / respawn ----
-
-  private die() {
-    this.dead = true;
-    this.respawnTimer = RESPAWN_MS;
-    this.setVelocity(0, 0);
+  private onAbilityExpire() {
+    this.isShielded = false;
+    this.damageMultiplier = 1;
+    this.speedMultiplier = 1;
+    this.bodyShape.setFillStyle(this.config.color, 1);
     this.abilityRing.clear();
-
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 1.4,
-      scaleY: 1.4,
-      alpha: 0.25,
-      duration: 450,
-      ease: 'Cubic.Out',
-    });
   }
 
-  private doRespawn() {
-    this.dead = false;
-    this.currentHp = this.cfg.hp;
-    this.dmgMultiplier = 1;
-    this.invincible = false;
-    this.abilityActive = false;
-    this.abilityRing.clear();
-    this.clearTint();
-
-    this.setPosition(MAP_WIDTH / 2, MAP_HEIGHT / 2 + 90);
-    this.respawnText.setVisible(false);
-
-    this.setAlpha(0);
-    this.setScale(0.5);
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 1,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 500,
-      ease: 'Back.Out',
-    });
-  }
-
-  // ---- görsel yardımcılar ----
-
-  private drawHpBar() {
+  private updateHpBar() {
     this.hpBar.clear();
-    const W = 40, H = 5;
-    const bx = this.x - W / 2;
-    const by = this.y - 34;
-    const frac = this.currentHp / this.cfg.hp;
+    const ratio = this.hp / this.config.maxHp;
+    const w = 48, h = 5;
 
-    this.hpBar.fillStyle(0x222222);
-    this.hpBar.fillRect(bx, by, W, H);
+    this.hpBar.fillStyle(0x333333, 0.8);
+    this.hpBar.fillRect(0, 0, w, h);
 
-    const col = frac > 0.5 ? 0x44ff44 : frac > 0.25 ? 0xffaa00 : 0xff3333;
-    this.hpBar.fillStyle(col);
-    this.hpBar.fillRect(bx, by, W * frac, H);
+    const barColor = ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffaa00 : 0xff3333;
+    this.hpBar.fillStyle(barColor, 1);
+    this.hpBar.fillRect(0, 0, w * ratio, h);
   }
 
-  private drawAbilityRing() {
-    this.abilityRing.clear();
-    if (this.cfg.abilityAoeRange <= 0) return;
-
-    const ringColor: Record<string, number> = {
-      paladin: 0xffdd44,
-      ranger: 0x44ffaa,
-      druid: 0x66ff66,
-    };
-    const col = ringColor[this.cfg.key] ?? 0xffffff;
-    this.abilityRing.lineStyle(2, col, 0.45);
-    this.abilityRing.strokeCircle(this.x, this.y, this.cfg.abilityAoeRange);
-  }
-
-  private showMageFlash() {
-    const flash = this.scene.add.graphics().setDepth(25);
-    flash.fillStyle(0xaa44ff, 0.55);
-    flash.fillCircle(this.x, this.y, this.cfg.abilityAoeRange);
-    flash.lineStyle(3, 0xdd88ff, 1);
-    flash.strokeCircle(this.x, this.y, this.cfg.abilityAoeRange);
-    this.scene.tweens.add({
-      targets: flash,
-      alpha: 0,
-      scaleX: 1.3,
-      scaleY: 1.3,
-      duration: 500,
-      ease: 'Cubic.Out',
-      onComplete: () => flash.destroy(),
-    });
-  }
-
-  // ---- getter'lar ----
-
-  getConfig(): HeroConfig { return this.cfg; }
-  getCurrentHp(): number { return this.currentHp; }
-  getMaxHp(): number { return this.cfg.hp; }
-  isHeroDead(): boolean { return this.dead; }
-  getAttackRange(): number { return this.cfg.attackRange; }
-
+  /** Minimap kamerasından gizlenecek objeler */
   getDisplayObjects(): Phaser.GameObjects.GameObject[] {
-    return [this.hpBar, this.abilityRing, this.respawnText];
+    return [this.abilityRing, this.respawnText];
   }
 
   destroy(fromScene?: boolean) {
-    this.hpBar.destroy();
     this.abilityRing.destroy();
     this.respawnText.destroy();
     super.destroy(fromScene);
