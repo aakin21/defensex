@@ -29,12 +29,12 @@
 - [x] Hero seçim ekranı (HeroSelectScene.ts)
 
 ### Faz 4 — Bina & Duvar
-- [ ] Free placement sistemi (parmakla koy)
-- [ ] Duvar serbest çizim mekaniği (sürükle → segmentler çizilir)
-- [ ] Okçu Kulesi görseli + ateş animasyonu
-- [ ] Havan Topu görseli + AoE animasyonu
-- [ ] Lazer Kulesi görseli + ışın efekti
-- [ ] Bina upgrade UI
+- [x] Free placement sistemi (ghost önizleme, tap to place)
+- [x] Duvar serbest çizim mekaniği (sürükle → 64px segmentler, altın yetersizse kısalt)
+- [x] Okçu Kulesi görseli + saldırı efekti (placeholder)
+- [x] Havan Topu görseli + AoE saldırı
+- [x] Lazer Kulesi görseli + sürekli ışın efekti
+- [x] Bina upgrade UI (UpgradePopup, tap to open)
 - [ ] ⏳ BEKLE: Claude → satın alma mesajları server'da hazır olsun
 
 ### Faz 5 — Düşman Görseli
@@ -90,3 +90,4 @@ _(diğer fazlar server tarafı tarafından güncellenir)_
 | 2026-04-13 | Client iskeleti kuruldu (Phaser + Vite + Capacitor) |
 | 2026-04-13 | Faz 2 bitti: harita sistemi, terrain renkleri, kamera drag, pinch-zoom, minimap |
 | 2026-04-13 | Faz 3 bitti: Hero sınıfı, 6 hero config, joystick, yetenek butonu, hero seçim ekranı |
+| 2026-04-13 | Faz 4 bitti: bina sistemi, duvar çizimi, upgrade popup, ekonomi sistemi |
