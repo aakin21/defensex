@@ -20,13 +20,13 @@
 - [x] Minimap (sağ alt, 150x150px)
 
 ### Faz 3 — Hero
-- [ ] Hero base sınıfı
-- [ ] Sol joystick hareketi (mobil)
-- [ ] Otomatik yakın dövüş saldırısı
-- [ ] 6 hero görseli + stat farklılıkları
-- [ ] Hero yetenek butonu + cooldown animasyonu
-- [ ] Hero ölüm + respawn görsel efekti
-- [ ] Hero seçim ekranı
+- [x] Hero base sınıfı
+- [x] Sol joystick hareketi (mobil)
+- [x] Otomatik yakın dövüş saldırısı (tryAutoAttack — düşman state gelince bağlanacak)
+- [x] 6 hero görseli + stat farklılıkları (placeholder renkli daireler)
+- [x] Hero yetenek butonu + cooldown animasyonu (pie)
+- [x] Hero ölüm + respawn görsel efekti (10sn timer)
+- [x] Hero seçim ekranı
 
 ### Faz 4 — Bina & Duvar
 - [ ] Free placement sistemi (parmakla koy)
@@ -89,3 +89,4 @@ _(diğer fazlar server tarafı tarafından güncellenir)_
 |---|---|
 | 2026-04-13 | Client iskeleti kuruldu (Phaser + Vite + Capacitor) |
 | 2026-04-13 | Faz 2 bitti: harita sistemi, terrain renkleri, kamera drag, pinch-zoom, minimap |
+| 2026-04-13 | Faz 3 bitti: Hero entity (6 hero), Joystick, AbilityButton (cooldown pie), HeroSelectScene, ölüm+respawn |

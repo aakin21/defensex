@@ -20,8 +20,7 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     playBtn.on('pointerdown', () => {
-      // TODO: login/oda seçim ekranına geç
-      this.scene.start('GameScene');
+      this.scene.start('HeroSelectScene');
     });
 
     playBtn.on('pointerover', () => playBtn.setColor('#fff'));
