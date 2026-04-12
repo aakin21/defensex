@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
+import { HeroSelectScene } from './scenes/HeroSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { GameOverScene } from './scenes/GameOverScene';
 
@@ -10,7 +11,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 854,
   backgroundColor: '#1a1a2e',
   parent: undefined,
-  scene: [BootScene, MenuScene, GameScene, GameOverScene],
+  scene: [BootScene, MenuScene, HeroSelectScene, GameScene, GameOverScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
