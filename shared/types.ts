@@ -4,7 +4,7 @@ export type HeroType = 'Paladin' | 'Sövalye' | 'Barbar' | 'Ranger' | 'Büyücü
 
 export type BotUnitType = 'Warrior' | 'Defender';
 
-export type BuildingType = 'ArcherTower' | 'Mortar' | 'LaserTower' | 'Wall';
+export type BuildingType = 'ArrowTower' | 'Mortar' | 'LaserTower' | 'Wall';
 
 export type EnemyType = 'Warrior' | 'Runner' | 'Tank' | 'Shaman';
 
@@ -37,7 +37,7 @@ export interface BuildingLevelStats {
 }
 
 export const BUILDING_STATS: Record<BuildingType, BuildingLevelStats[]> = {
-  ArcherTower: [
+  ArrowTower: [
     { cost: 80,  hp: 300, damage: 25,  range: 200, fireRate: 1.5 },
     { cost: 60,  hp: 450, damage: 40,  range: 220, fireRate: 1.2 },
     { cost: 80,  hp: 600, damage: 60,  range: 250, fireRate: 1.0 },
@@ -70,12 +70,12 @@ export interface HeroStats {
 }
 
 export const HERO_STATS: Record<HeroType, HeroStats> = {
-  Paladin:  { maxHp: 300, moveSpeed: 120, damage: 35, attackRange: 60,  attackSpeed: 1.2, abilityCooldown: 15 },
-  Sövalye:  { maxHp: 420, moveSpeed:  90, damage: 55, attackRange: 70,  attackSpeed: 1.6, abilityCooldown: 20 },
-  Barbar:   { maxHp: 250, moveSpeed: 130, damage: 50, attackRange: 65,  attackSpeed: 1.2, abilityCooldown: 18 },
-  Ranger:   { maxHp: 180, moveSpeed: 180, damage: 20, attackRange: 55,  attackSpeed: 0.7, abilityCooldown: 15 },
-  Büyücü:   { maxHp: 170, moveSpeed: 120, damage: 40, attackRange: 80,  attackSpeed: 1.4, abilityCooldown: 12 },
-  Druid:    { maxHp: 220, moveSpeed: 125, damage: 25, attackRange: 58,  attackSpeed: 1.0, abilityCooldown: 20 },
+  Paladin:  { maxHp: 220, moveSpeed: 160, damage: 25, attackRange: 60, attackSpeed: 1.0, abilityCooldown: 15 },
+  Sövalye:  { maxHp: 300, moveSpeed: 110, damage: 40, attackRange: 60, attackSpeed: 1.5, abilityCooldown: 20 },
+  Barbar:   { maxHp: 150, moveSpeed: 160, damage: 40, attackRange: 60, attackSpeed: 1.0, abilityCooldown: 18 },
+  Ranger:   { maxHp: 100, moveSpeed: 230, damage: 15, attackRange: 60, attackSpeed: 0.5, abilityCooldown: 15 },
+  Büyücü:   { maxHp: 100, moveSpeed: 150, damage: 25, attackRange: 80, attackSpeed: 1.0, abilityCooldown: 12 },
+  Druid:    { maxHp: 150, moveSpeed: 155, damage: 15, attackRange: 60, attackSpeed: 0.7, abilityCooldown: 20 },
 };
 
 // ─── Bot stats ─────────────────────────────────────────────────────────────

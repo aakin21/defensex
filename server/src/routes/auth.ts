@@ -11,26 +11,28 @@ const SALT_ROUNDS = 10;
 // ─── POST /api/auth/register ──────────────────────────────────────────────
 
 authRouter.post('/register', async (req: Request, res: Response) => {
-  const { email, username, password } = req.body as {
-    email?: string; username?: string; password?: string;
-  };
+  const { username, password } = req.body as { username?: string; password?: string };
 
-  if (!email || !username || !password) {
-    res.status(400).json({ error: 'email, username ve password gerekli' });
+  if (!username || !password) {
+    res.status(400).json({ error: 'username ve password gerekli' });
+    return;
+  }
+  if (username.length < 3) {
+    res.status(400).json({ error: 'Kullanıcı adı en az 3 karakter olmalı' });
     return;
   }
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (existing) {
-    res.status(409).json({ error: 'Bu email zaten kayıtlı' });
+    res.status(409).json({ error: 'Bu kullanıcı adı zaten alınmış' });
     return;
   }
 
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
   const result = db
-    .prepare('INSERT INTO users (email, username, password_hash) VALUES (?, ?, ?)')
-    .run(email, username, hash);
+    .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+    .run(username, hash);
 
   const token = jwt.sign({ userId: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '7d' });
   res.status(201).json({ token, username });
@@ -39,26 +41,26 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 // ─── POST /api/auth/login ─────────────────────────────────────────────────
 
 authRouter.post('/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body as { email?: string; password?: string };
+  const { username, password } = req.body as { username?: string; password?: string };
 
-  if (!email || !password) {
-    res.status(400).json({ error: 'email ve password gerekli' });
+  if (!username || !password) {
+    res.status(400).json({ error: 'username ve password gerekli' });
     return;
   }
 
   const db = getDb();
   const user = db
-    .prepare('SELECT id, username, password_hash FROM users WHERE email = ?')
-    .get(email) as { id: number; username: string; password_hash: string } | undefined;
+    .prepare('SELECT id, username, password_hash FROM users WHERE username = ?')
+    .get(username) as { id: number; username: string; password_hash: string } | undefined;
 
   if (!user) {
-    res.status(401).json({ error: 'Geçersiz email veya şifre' });
+    res.status(401).json({ error: 'Geçersiz kullanıcı adı veya şifre' });
     return;
   }
 
   const match = await bcrypt.compare(password, user.password_hash);
   if (!match) {
-    res.status(401).json({ error: 'Geçersiz email veya şifre' });
+    res.status(401).json({ error: 'Geçersiz kullanıcı adı veya şifre' });
     return;
   }
 
@@ -66,7 +68,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   res.json({ token, username: user.username });
 });
 
-// ─── GET /api/auth/me — verify token ─────────────────────────────────────
+// ─── GET /api/auth/me ─────────────────────────────────────────────────────
 
 authRouter.get('/me', (req: Request, res: Response) => {
   const auth = req.headers.authorization;
@@ -84,7 +86,7 @@ authRouter.get('/me', (req: Request, res: Response) => {
   }
 });
 
-// ─── POST /api/auth/stats — save session stats ────────────────────────────
+// ─── POST /api/auth/stats ─────────────────────────────────────────────────
 
 authRouter.post('/stats', (req: Request, res: Response) => {
   const auth = req.headers.authorization;

@@ -497,7 +497,7 @@ export class GameRoom extends Room<GameState> {
           }
         }
       } else {
-        // ArcherTower — single target
+        // ArrowTower — single target
         this.buildingAttackTimers.set(id, stats.fireRate * 1000);
         this.dealDamageToEnemy(nearestEnemy, stats.damage);
       }
