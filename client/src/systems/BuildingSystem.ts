@@ -3,13 +3,13 @@ import { Building } from '../entities/Building';
 import { WallSegment } from '../entities/WallSegment';
 import type { BuildingType } from '../entities/BuildingConfig';
 import { BUILDING_CONFIGS } from '../entities/BuildingConfig';
-import { MapSystem, TerrainType, TILE_SIZE } from './MapSystem';
+import { MapSystem, TerrainType, TILE_SIZE, MAP_WIDTH, MAP_HEIGHT } from './MapSystem';
 import { EconomySystem } from './EconomySystem';
 import type { EnemyTarget } from '../entities/Building';
 
 const BASE_RADIUS = 80; // bu yarıçap içine bina konulamaz (base koruması)
-const BASE_X = 1024;
-const BASE_Y = 1024;
+const BASE_X = MAP_WIDTH  / 2; // 2048
+const BASE_Y = MAP_HEIGHT / 2; // 2048
 
 export class BuildingSystem {
   private scene: Phaser.Scene;
@@ -54,7 +54,7 @@ export class BuildingSystem {
     }
 
     // tile sınırları
-    if (x < TILE_SIZE || x > 2048 - TILE_SIZE || y < TILE_SIZE || y > 2048 - TILE_SIZE) {
+    if (x < TILE_SIZE || x > MAP_WIDTH - TILE_SIZE || y < TILE_SIZE || y > MAP_HEIGHT - TILE_SIZE) {
       return { ok: false, reason: 'Harita dışı' };
     }
 

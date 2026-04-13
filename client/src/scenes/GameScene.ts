@@ -43,10 +43,11 @@ class RemoteHero extends Phaser.GameObjects.Container {
   }
 }
 
-const ZOOM_MIN  = 0.5;
-const ZOOM_MAX  = 1.5;
-const BASE_X    = MAP_WIDTH  / 2;
-const BASE_Y    = MAP_HEIGHT / 2;
+const ZOOM_MIN    = 0.3;
+const ZOOM_MAX    = 1.5;
+const BASE_X      = MAP_WIDTH  / 2;
+const BASE_Y      = MAP_HEIGHT / 2;
+const CHUNK_SIZE  = 2048; // WebGL max texture-safe chunk
 const BASE_MAX_HP = 5000;
 const BOT_LIMIT   = 10;
 
@@ -81,6 +82,7 @@ export class GameScene extends Phaser.Scene {
   private baseHp = BASE_MAX_HP;
 
   // Kamera
+  private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
 
@@ -105,26 +107,30 @@ export class GameScene extends Phaser.Scene {
     this.wallDraw       = new WallDrawSystem(this);
     this.enemySystem    = new EnemySystem(this, this.economy);
 
+    // ── Dünya nesneleri (kamera ayrımı için önce oluştur) ──
     this.renderMap();
     this.placeBase();
     this.spawnHero();
-    this.setupCamera();
+    this.ghostGfx = this.add.graphics().setDepth(60);
 
+    // Display list snapshot — bu noktadaki her şey "dünya" nesnesi
+    const worldDisplayItems = new Set(this.children.list as Phaser.GameObjects.GameObject[]);
+
+    // ── UI nesneleri ──
     this.minimap       = new Minimap(this);
     this.joystick      = new Joystick(this);
     this.abilityButton = new AbilityButton(this);
     this.buildingMenu  = new BuildingMenu(this, this.economy);
     this.botMenu       = new BotMenu(this, this.economy);
     this.upgradePopup  = new UpgradePopup(this);
-    this.ghostGfx      = this.add.graphics().setDepth(60);
-
-    // HUD — hero config ile
     const heroType = this.registry.get('heroType') as HeroType;
     this.hud = new HUD(this, HERO_CONFIGS[heroType]);
 
-    // Hızlı komut balonunu hero yanında göster
-    this.hud.onQuickCommand = (cmd) => this.showQuickCommandBalloon(cmd);
+    // ── Kamera (dünya / UI ayrımı snapshot'a göre) ──
+    this.setupCamera(worldDisplayItems);
 
+    // UI callbackleri
+    this.hud.onQuickCommand = (cmd) => this.showQuickCommandBalloon(cmd);
     this.abilityButton.onPress = () => {
       this.hero.useAbility();
       NetworkManager.sendHeroAbility();
@@ -183,23 +189,37 @@ export class GameScene extends Phaser.Scene {
   // ---- Harita ----
 
   private renderMap() {
-    const rt  = this.add.renderTexture(0, 0, MAP_WIDTH, MAP_HEIGHT);
-    const gfx = this.add.graphics();
+    // 4096×4096 tek texture WebGL limitini aşar (genellikle max 2048).
+    // Haritayı 2×2 = 4 adet 2048×2048 chunk'a bölerek render et.
+    const tilesPerChunk = CHUNK_SIZE / TILE_SIZE; // 32
     const mapData = this.mapSystem.getData();
+    const gfx = this.add.graphics();
 
-    for (let row = 0; row < mapData.length; row++) {
-      for (let col = 0; col < mapData[row].length; col++) {
-        const terrain = mapData[row][col];
-        gfx.fillStyle(TERRAIN_COLOR[terrain], 1);
-        gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-        gfx.lineStyle(1, 0x000000, 0.15);
-        gfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
-        rt.draw(gfx, col * TILE_SIZE, row * TILE_SIZE);
-        gfx.clear();
+    for (let chunkRow = 0; chunkRow < 2; chunkRow++) {
+      for (let chunkCol = 0; chunkCol < 2; chunkCol++) {
+        const worldX = chunkCol * CHUNK_SIZE;
+        const worldY = chunkRow * CHUNK_SIZE;
+        const rt = this.add.renderTexture(worldX, worldY, CHUNK_SIZE, CHUNK_SIZE);
+        rt.setDepth(0);
+
+        const startRow = chunkRow * tilesPerChunk;
+        const startCol = chunkCol * tilesPerChunk;
+
+        for (let r = startRow; r < startRow + tilesPerChunk; r++) {
+          for (let c = startCol; c < startCol + tilesPerChunk; c++) {
+            const terrain = mapData[r]?.[c];
+            if (terrain === undefined) continue;
+            gfx.fillStyle(TERRAIN_COLOR[terrain], 1);
+            gfx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+            gfx.lineStyle(1, 0x000000, 0.15);
+            gfx.strokeRect(0, 0, TILE_SIZE, TILE_SIZE);
+            rt.draw(gfx, (c - startCol) * TILE_SIZE, (r - startRow) * TILE_SIZE);
+            gfx.clear();
+          }
+        }
       }
     }
     gfx.destroy();
-    rt.setDepth(0);
   }
 
   private placeBase() {
@@ -223,14 +243,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---- Kamera ----
+  // cameras.main  = dünya kamerası (hero'yu takip eder, zoom edilebilir)
+  // this.uiCam    = UI kamerası (zoom=1, sabit; UI elemanları zoomdan etkilenmez)
+  // minimap.camera = harita genel görünümü
 
-  private setupCamera() {
+  private setupCamera(worldDisplayItems: Set<Phaser.GameObjects.GameObject>) {
+    const { width, height } = this.scale;
+    const allObjects = this.children.list as Phaser.GameObjects.GameObject[];
+
+    // UI nesneleri = snapshot sonrası eklenenler
+    const uiObjects   = allObjects.filter(o => !worldDisplayItems.has(o));
+    const worldObjects = Array.from(worldDisplayItems);
+
+    // ── Dünya kamerası (cameras.main, önce render edilir = altta kalır) ──
     const cam = this.cameras.main;
     cam.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-    cam.setZoom(0.5); // daha geniş görüş alanı
-    // Kamerayı hemen hero'ya kilitle (lerp olmadan), sonra yumuşat
+    cam.setZoom(0.5);
     cam.centerOn(this.hero.x, this.hero.y);
     cam.startFollow(this.hero, true, 0.1, 0.1);
+    cam.ignore(uiObjects); // dünya kamerası UI'ı göstermez
+
+    // ── UI kamerası (sonra render edilir = üstte kalır, zoom=1 sabit) ──
+    this.uiCam = this.cameras.add(0, 0, width, height);
+    this.uiCam.setZoom(1);
+    this.uiCam.setScroll(0, 0);
+    this.uiCam.ignore(worldObjects); // UI kamerası dünya nesnelerini göstermez
+
+    // ── Minimap kamerası: UI görünmemeli, kendi dot'larını görmeli ──
+    const minimapInternals = new Set(this.minimap.getInternalObjects());
+    const uiForMinimap = uiObjects.filter(o => !minimapInternals.has(o));
+    this.minimap.camera.ignore(uiForMinimap);
   }
 
   // ---- Bina Konuşlandırma Input ----
@@ -403,6 +445,9 @@ export class GameScene extends Phaser.Scene {
       backgroundColor: '#000000cc',
       padding: { x: 12, y: 6 },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(200);
+
+    // Dinamik UI nesnesi — dünya kamerası göstermesin
+    this.cameras.main.ignore(txt);
 
     this.time.delayedCall(2000, () => txt.destroy());
   }

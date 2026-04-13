@@ -44,6 +44,11 @@ export class Minimap {
     this.camera.ignore([this.borderGraphics]);
   }
 
+  /** Dünya kamerasının görmemesi gereken dahili minimap noktaları */
+  getInternalObjects(): Phaser.GameObjects.GameObject[] {
+    return [this.heroGraphics, this.buildingGraphics, this.enemyGraphics];
+  }
+
   update(
     heroes: { x: number; y: number }[],
     buildings: { x: number; y: number }[],
