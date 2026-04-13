@@ -14,15 +14,22 @@ import { Joystick } from '../ui/Joystick';
 import { AbilityButton } from '../ui/AbilityButton';
 import { BuildingMenu } from '../ui/BuildingMenu';
 import { UpgradePopup } from '../ui/UpgradePopup';
+import { HUD } from '../ui/HUD';
+import { BotMenu } from '../ui/BotMenu';
 import { Hero } from '../entities/Hero';
+import { BotUnit } from '../entities/BotUnit';
 import { HERO_CONFIGS } from '../entities/HeroConfig';
+import { BOT_CONFIGS } from '../entities/BotUnit';
 import type { HeroType } from '../entities/HeroConfig';
+import type { BotUnitType } from '../entities/BotUnit';
 import type { Building } from '../entities/Building';
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 1.5;
-const BASE_X   = MAP_WIDTH  / 2;
-const BASE_Y   = MAP_HEIGHT / 2;
+const ZOOM_MIN  = 0.5;
+const ZOOM_MAX  = 1.5;
+const BASE_X    = MAP_WIDTH  / 2;
+const BASE_Y    = MAP_HEIGHT / 2;
+const BASE_MAX_HP = 5000;
+const BOT_LIMIT   = 10;
 
 export class GameScene extends Phaser.Scene {
   private mapSystem!:      MapSystem;
@@ -34,15 +41,30 @@ export class GameScene extends Phaser.Scene {
   private joystick!:       Joystick;
   private abilityButton!:  AbilityButton;
   private buildingMenu!:   BuildingMenu;
+  private botMenu!:        BotMenu;
   private upgradePopup!:   UpgradePopup;
+  private hud!:            HUD;
 
   private hero!: Hero;
+  private botUnits: BotUnit[] = [];
 
-  // kamera
+  // Seçili bot konuşlandırma türü
+  private placingBotType: BotUnitType | null = null;
+
+  // Phase yönetimi (server gelince senkronize edilecek)
+  private gamePhase: 'prep' | 'wave' = 'prep';
+  private prepTimeLeftMs = 30_000;
+  private waveNumber = 1;
+  private enemiesLeft = 0;
+
+  // Base HP
+  private baseHp = BASE_MAX_HP;
+
+  // Kamera
   private pinchStartDist = 0;
   private pinchStartZoom = 1;
 
-  // placement ghost (bina önizleme)
+  // Bina yerleştirme ghost önizlemesi
   private ghostGfx!: Phaser.GameObjects.Graphics;
 
   constructor() {
@@ -54,10 +76,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.economy       = new EconomySystem(200);
-    this.mapSystem     = new MapSystem();
+    this.economy        = new EconomySystem(200);
+    this.mapSystem      = new MapSystem();
     this.buildingSystem = new BuildingSystem(this, this.mapSystem, this.economy);
-    this.wallDraw      = new WallDrawSystem(this);
+    this.wallDraw       = new WallDrawSystem(this);
 
     this.renderMap();
     this.placeBase();
@@ -68,18 +90,26 @@ export class GameScene extends Phaser.Scene {
     this.joystick      = new Joystick(this);
     this.abilityButton = new AbilityButton(this);
     this.buildingMenu  = new BuildingMenu(this, this.economy);
+    this.botMenu       = new BotMenu(this, this.economy);
     this.upgradePopup  = new UpgradePopup(this);
     this.ghostGfx      = this.add.graphics().setDepth(60);
 
-    this.abilityButton.onPress = () => this.hero.useAbility();
+    // HUD — hero config ile
+    const heroType = this.registry.get('heroType') as HeroType;
+    this.hud = new HUD(this, HERO_CONFIGS[heroType]);
 
+    // Hızlı komut balonunu hero yanında göster
+    this.hud.onQuickCommand = (cmd) => this.showQuickCommandBalloon(cmd);
+
+    this.abilityButton.onPress = () => this.hero.useAbility();
     this.buildingSystem.onPlaceFailed = (msg) => this.showNotification(msg);
 
     this.setupBuildingInput();
+    this.setupBotInput();
     this.setupPinchZoom();
   }
 
-  // ---- harita ----
+  // ---- Harita ----
 
   private renderMap() {
     const rt  = this.add.renderTexture(0, 0, MAP_WIDTH, MAP_HEIGHT);
@@ -114,14 +144,14 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(11);
   }
 
-  // ---- hero ----
+  // ---- Hero ----
 
   private spawnHero() {
     const heroType = this.registry.get('heroType') as HeroType;
     this.hero = new Hero(this, BASE_X, BASE_Y - 80, HERO_CONFIGS[heroType], this.mapSystem);
   }
 
-  // ---- kamera ----
+  // ---- Kamera ----
 
   private setupCamera() {
     const cam = this.cameras.main;
@@ -130,11 +160,14 @@ export class GameScene extends Phaser.Scene {
     cam.startFollow(this.hero, true, 0.08, 0.08);
   }
 
-  // ---- input: bina yerleştirme ----
+  // ---- Bina Konuşlandırma Input ----
 
   private setupBuildingInput() {
     this.buildingMenu.onSelect = (type) => {
       this.ghostGfx.clear();
+      this.botMenu.deselect(); // karşılıklı dışlama
+      this.placingBotType = null;
+
       if (type === 'Wall') {
         this.wallDraw.activate();
         this.wallDraw.onDrawComplete = (x1, y1, x2, y2) => {
@@ -151,10 +184,8 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
-    // haritaya tıklama: bina koy veya mevcut binayı seç
     this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (this.upgradePopup.isVisible()) {
-        // popup dışına tıklandıysa kapat
         this.upgradePopup.hide();
         return;
       }
@@ -164,10 +195,9 @@ export class GameScene extends Phaser.Scene {
 
       const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
 
-      // mevcut binaya tıklandı mı?
-      const hit = this.buildingSystem.buildings.find(b => {
-        return Phaser.Math.Distance.Between(world.x, world.y, b.x, b.y) < b.config.size / 2 + 8;
-      });
+      const hit = this.buildingSystem.buildings.find(b =>
+        Phaser.Math.Distance.Between(world.x, world.y, b.x, b.y) < b.config.size / 2 + 8,
+      );
 
       if (hit) {
         this.showUpgradePopup(hit, ptr.x, ptr.y);
@@ -175,13 +205,12 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      // yeni bina koy
       this.buildingSystem.placeBuilding(world.x, world.y, selected);
       this.buildingMenu.deselect();
       this.ghostGfx.clear();
     });
 
-    // ghost önizleme
+    // Ghost önizleme
     this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
       const selected = this.buildingMenu.selectedType;
       if (!selected || selected === 'Wall') {
@@ -206,12 +235,55 @@ export class GameScene extends Phaser.Scene {
     const px = Phaser.Math.Clamp(screenX, 100, width  - 100);
     const py = Phaser.Math.Clamp(screenY, 70,  height - 70);
     this.upgradePopup.show(building, px, py);
-    this.upgradePopup.onUpgrade = (b) => {
-      this.buildingSystem.upgradeBuilding(b);
-    };
+    this.upgradePopup.onUpgrade = (b) => this.buildingSystem.upgradeBuilding(b);
   }
 
-  // ---- pinch zoom ----
+  // ---- Bot Konuşlandırma Input ----
+
+  private setupBotInput() {
+    this.botMenu.onSelect = (type) => {
+      this.buildingMenu.deselect(); // karşılıklı dışlama
+      this.wallDraw.deactivate();
+      this.placingBotType = type;
+    };
+
+    // Bot konuşlandırma tap'i (building pointerdown ile çakışmaz — farklı guard)
+    this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (!this.placingBotType) return;
+
+      // Sağ menü tıklamasını geçir
+      const { width } = this.scale;
+      if (ptr.x > width - 70) return;
+
+      // Limit kontrolü
+      const aliveBots = this.botUnits.filter(b => !b.isDead);
+      if (aliveBots.length >= BOT_LIMIT) {
+        this.showNotification(`Bot limiti doldu! (max ${BOT_LIMIT})`);
+        this.botMenu.deselect();
+        this.placingBotType = null;
+        return;
+      }
+
+      const cfg = BOT_CONFIGS[this.placingBotType];
+      if (!this.economy.canAfford(cfg.cost)) {
+        this.showNotification(`Yetersiz altın! (${cfg.cost}g gerekli)`);
+        this.botMenu.deselect();
+        this.placingBotType = null;
+        return;
+      }
+
+      const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      this.economy.spend(cfg.cost);
+
+      const bot = new BotUnit(this, world.x, world.y, cfg);
+      this.botUnits.push(bot);
+
+      this.botMenu.deselect();
+      this.placingBotType = null;
+    });
+  }
+
+  // ---- Pinch Zoom ----
 
   private setupPinchZoom() {
     const cam = this.cameras.main;
@@ -243,7 +315,7 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  // ---- bildirim ----
+  // ---- Bildirim ----
 
   private showNotification(msg: string) {
     const { width, height } = this.scale;
@@ -257,9 +329,51 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(2000, () => txt.destroy());
   }
 
-  // ---- update ----
+  // ---- Hızlı Komut Balonu (world space) ----
+
+  private showQuickCommandBalloon(cmd: string) {
+    const balloon = this.add.text(this.hero.x, this.hero.y - 60, cmd, {
+      fontSize: '13px',
+      color: '#' + this.heroColorHex(),
+      backgroundColor: '#000000cc',
+      padding: { x: 6, y: 4 },
+    }).setOrigin(0.5).setDepth(50);
+
+    this.tweens.add({
+      targets: balloon,
+      y: balloon.y - 40,
+      alpha: 0,
+      duration: 2000,
+      ease: 'Cubic.Out',
+      onComplete: () => balloon.destroy(),
+    });
+  }
+
+  private heroColorHex(): string {
+    const heroType = this.registry.get('heroType') as HeroType;
+    const color = HERO_CONFIGS[heroType].color;
+    return color.toString(16).padStart(6, '0');
+  }
+
+  // ---- Phase Yönetimi (client-side placeholder) ----
+
+  private updatePhase(delta: number) {
+    if (this.gamePhase === 'prep') {
+      this.prepTimeLeftMs -= delta;
+      if (this.prepTimeLeftMs <= 0) {
+        this.gamePhase = 'wave';
+        this.prepTimeLeftMs = 0;
+        // Wave başlayınca düşmanlar server'dan gelecek
+      }
+    }
+    // wave fazı: enemiesLeft server'dan güncellenecek
+    // wave biter → prep fazı, waveNumber++
+  }
+
+  // ---- Update ----
 
   update(_time: number, delta: number) {
+    // Hero hareketi
     if (this.joystick.isActive) {
       this.hero.move(this.joystick.dx, this.joystick.dy, delta);
     }
@@ -267,9 +381,34 @@ export class GameScene extends Phaser.Scene {
     this.hero.update(delta);
     this.abilityButton.updateCooldown(this.hero.getAbilityCooldownRatio());
 
-    this.buildingSystem.update(delta, []);  // düşmanlar Faz 5/6'da gelecek
-    this.buildingMenu.update();
+    // Bot unit güncellemeleri
+    this.botUnits = this.botUnits.filter(b => !b.isDead);
+    for (const bot of this.botUnits) {
+      bot.update(delta);
+    }
 
+    // Binalar
+    this.buildingSystem.update(delta, []);
+    this.buildingMenu.update();
+    this.botMenu.update();
+
+    // Phase
+    this.updatePhase(delta);
+
+    // HUD güncelle
+    this.hud.update({
+      heroHp:          this.hero.hp,
+      heroMaxHp:       this.hero.config.maxHp,
+      gold:            this.economy.getGold(),
+      wave:            this.waveNumber,
+      enemiesLeft:     this.enemiesLeft,
+      phase:           this.gamePhase,
+      prepTimeLeftMs:  this.prepTimeLeftMs,
+      baseHp:          this.baseHp,
+      baseMaxHp:       BASE_MAX_HP,
+    });
+
+    // Minimap
     this.minimap.update(
       [{ x: this.hero.x, y: this.hero.y }],
       this.buildingSystem.getBuildingPositions(),

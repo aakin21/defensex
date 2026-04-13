@@ -44,18 +44,18 @@
 - [ ] ⏳ BEKLE: Claude → düşman state şeması hazır olsun
 
 ### Faz 6 — HUD & UI
-- [ ] Oyuncu HP barları (sol üst)
-- [ ] Altın göstergesi (üst orta)
-- [ ] Wave sayısı + kalan düşman (üst orta)
-- [ ] Prep fazı geri sayım timer
-- [ ] Ana base HP barı (alt orta)
-- [ ] Bina/unit satın alma menüsü
-- [ ] Hızlı komut butonları
+- [x] Oyuncu HP barları (sol üst, hero panel)
+- [x] Altın göstergesi (üst orta)
+- [x] Wave sayısı + kalan düşman (üst orta)
+- [x] Prep fazı geri sayım timer (kırmızı, client-side placeholder)
+- [x] Ana base HP barı (alt sol, belirgin)
+- [x] Bina/unit satın alma menüsü (zaten vardı — BuildingMenu)
+- [x] Hızlı komut butonları (2x2 grid, joystick üstü, balon efekti)
 
 ### Faz 7 — Bot Unit
-- [ ] Warrior Bot görseli + animasyon
-- [ ] Defender Bot görseli + animasyon
-- [ ] Konuşlandırma sistemi
+- [x] Warrior Bot görseli + patrol animasyonu
+- [x] Defender Bot görseli (sabit durur)
+- [x] Konuşlandırma sistemi (BotMenu, limit 10, altın kontrolü)
 
 ### Faz 8 — Multiplayer Görsel Sync
 - [ ] Diğer oyuncuların herolarını render et
@@ -91,3 +91,5 @@ _(diğer fazlar server tarafı tarafından güncellenir)_
 | 2026-04-13 | Faz 2 bitti: harita sistemi, terrain renkleri, kamera drag, pinch-zoom, minimap |
 | 2026-04-13 | Faz 3 bitti: Hero (Container, 6 hero), Joystick, AbilityButton (pie), HeroSelectScene, respawn efekti |
 | 2026-04-13 | Faz 4 bitti: bina sistemi, duvar çizimi, upgrade popup, ekonomi sistemi |
+| 2026-04-13 | Faz 6 bitti: HUD (hero HP, altın, wave, base HP bar, prep timer, hızlı komutlar) |
+| 2026-04-13 | Faz 7 bitti: BotUnit (Warrior patrol + Defender sabit), BotMenu, limit/altın kontrolü |
