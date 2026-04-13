@@ -10,11 +10,13 @@ const ICON_SIZE = 52;
 const ICON_GAP  = 8;
 const MARGIN    = 10;
 
-// BuildingMenu'nun 4 ikonunu hesaba kat:
-// totalH = 4*52 + 3*8 = 232, startY = (854-232)/2 = 311
-// son ikon: 311 + 3*60 + 52/2 = 311+180+26 = 517 → alt kenar 517+26 = 543
-// Bot menüsü: 543 + 16 (ayırıcı) = 559
-const BOT_MENU_START_Y = 559;
+// BuildingMenu toplam yüksekliği: 4 ikon × 52 + 3 boşluk × 8 = 232
+const BUILDING_MENU_H = 4 * ICON_SIZE + 3 * ICON_GAP; // 232
+
+// Bot menüsü başlangıç Y'si: ekran yüksekliğine göre dinamik hesap
+function getBotMenuStartY(height: number): number {
+  return (height + BUILDING_MENU_H) / 2 + 16;
+}
 
 export class BotMenu {
   private scene: Phaser.Scene;
@@ -31,8 +33,9 @@ export class BotMenu {
   }
 
   private build() {
-    const { width } = this.scene.scale;
+    const { width, height } = this.scene.scale;
     const x = width - ICON_SIZE / 2 - MARGIN;
+    const BOT_MENU_START_Y = getBotMenuStartY(height);
 
     BOT_TYPES.forEach((type, i) => {
       const cfg = BOT_CONFIGS[type];

@@ -160,8 +160,8 @@ export const TERRAIN_SPEED: Record<TerrainType, number> = {
 };
 
 export const MAP_TILE_SIZE = 64;
-export const MAP_COLS      = 32; // 2048 / 64
-export const MAP_ROWS      = 32;
+export const MAP_COLS      = 64; // 4096 / 64
+export const MAP_ROWS      = 64;
 
 // ─── Misc ──────────────────────────────────────────────────────────────────
 

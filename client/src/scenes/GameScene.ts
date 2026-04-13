@@ -227,8 +227,10 @@ export class GameScene extends Phaser.Scene {
   private setupCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-    cam.setZoom(1);
-    cam.startFollow(this.hero, true, 0.08, 0.08);
+    cam.setZoom(0.5); // daha geniş görüş alanı
+    // Kamerayı hemen hero'ya kilitle (lerp olmadan), sonra yumuşat
+    cam.centerOn(this.hero.x, this.hero.y);
+    cam.startFollow(this.hero, true, 0.1, 0.1);
   }
 
   // ---- Bina Konuşlandırma Input ----
@@ -263,6 +265,9 @@ export class GameScene extends Phaser.Scene {
 
       const selected = this.buildingMenu.selectedType;
       if (!selected || selected === 'Wall') return;
+
+      // Sağ menü alanına tıklamayı yoksay (ikon seçimi ile çakışmasın)
+      if (ptr.x > this.scale.width - 70) return;
 
       const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
 

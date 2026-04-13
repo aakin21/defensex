@@ -5,25 +5,25 @@ import type { EnemyType } from '../../../shared/types';
 import { ENEMY_STATS, getWaveComposition } from '../../../shared/types';
 import { EconomySystem } from './EconomySystem';
 
-const MAP_W = 2048;
-const MAP_H = 2048;
+const MAP_W = 4096;
+const MAP_H = 4096;
 const BASE_X = MAP_W / 2;
 const BASE_Y = MAP_H / 2;
 
-// Harita kenarlarındaki spawn noktaları (8 adet)
+// Harita kenarlarındaki spawn noktaları
 const SPAWN_POINTS = [
-  { x: MAP_W * 0.5,  y: 60       }, // kuzey
-  { x: MAP_W * 0.25, y: 60       },
-  { x: MAP_W * 0.75, y: 60       },
-  { x: MAP_W - 60,   y: MAP_H * 0.5 }, // doğu
-  { x: MAP_W - 60,   y: MAP_H * 0.25 },
-  { x: MAP_W - 60,   y: MAP_H * 0.75 },
-  { x: MAP_W * 0.5,  y: MAP_H - 60 }, // güney
-  { x: MAP_W * 0.25, y: MAP_H - 60 },
-  { x: MAP_W * 0.75, y: MAP_H - 60 },
-  { x: 60,           y: MAP_H * 0.5 }, // batı
-  { x: 60,           y: MAP_H * 0.25 },
-  { x: 60,           y: MAP_H * 0.75 },
+  { x: MAP_W * 0.5,  y: 100       }, // kuzey
+  { x: MAP_W * 0.25, y: 100       },
+  { x: MAP_W * 0.75, y: 100       },
+  { x: MAP_W - 100,  y: MAP_H * 0.5 }, // doğu
+  { x: MAP_W - 100,  y: MAP_H * 0.25 },
+  { x: MAP_W - 100,  y: MAP_H * 0.75 },
+  { x: MAP_W * 0.5,  y: MAP_H - 100 }, // güney
+  { x: MAP_W * 0.25, y: MAP_H - 100 },
+  { x: MAP_W * 0.75, y: MAP_H - 100 },
+  { x: 100,          y: MAP_H * 0.5 }, // batı
+  { x: 100,          y: MAP_H * 0.25 },
+  { x: 100,          y: MAP_H * 0.75 },
 ];
 
 export class EnemySystem {
