@@ -27,4 +27,9 @@ export class EconomySystem {
     this.gold += amount;
     this.onChange?.(this.gold);
   }
+
+  setGold(amount: number) {
+    this.gold = amount;
+    this.onChange?.(this.gold);
+  }
 }

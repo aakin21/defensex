@@ -62,14 +62,16 @@
 ### Faz 8 — Multiplayer Görsel Sync
 - [x] colyseus.js client kurulumu
 - [x] NetworkManager.ts — login/register REST, lobby join/create, game join, mesaj gönderme
-- [ ] LobbyScene — oda oluştur/katıl UI, bekleme odası
-- [ ] GameScene multiplayer wiring — server state'den hero/enemy/building sync
-- [ ] Diğer oyuncuların herolarını render et
+- [x] LobbyScene — oda oluştur/katıl UI, oda kodu, bekleme odası, start_game tetikleme
+- [x] GameScene multiplayer wiring — server state sync (gold, phase, prepTimer, wave, baseHP)
+- [x] Diğer oyuncuların herolarını render et (RemoteHero container)
+- [x] Hero move/ability/attack mesajları server'a gönderiliyor
+- [x] Building/bot satın alma server'a iletiliyor
 
 ### Faz 9 — Ekranlar & Bitiş
 - [x] Login / kayıt ekranı (LoginScene.ts — HTML form, REST auth)
-- [ ] Bekleme odası ekranı (LobbyScene)
-- [ ] GameOver + istatistik ekranı
+- [x] Bekleme odası ekranı (LobbyScene)
+- [x] GameOver + istatistik ekranı (wave, kills, deaths, damage — stats server'a gönderiliyor)
 - [ ] Ses & müzik entegrasyonu
 - [ ] Capacitor mobil build (iOS + Android)
 
@@ -125,3 +127,4 @@
 | 2026-04-13 | SERVER Faz 1-5 bitti: Colyseus server, LobbyRoom, GameRoom, shared/types, A* pathfinding, WaveSpawner, auth REST+JWT+SQLite |
 | 2026-04-13 | CLIENT Faz 5 bitti: Enemy entity, EnemySystem, wave spawn, AI görüş konisi, şaman aura, GameOver tetikleme |
 | 2026-04-13 | CLIENT Faz 8-9 kısmi: NetworkManager (Colyseus client), LoginScene (HTML form, REST auth) |
+| 2026-04-13 | CLIENT Faz 8-9 tamamlandı: LobbyScene, GameScene multiplayer wiring, RemoteHero, GameOverScene istatistik tablosu |

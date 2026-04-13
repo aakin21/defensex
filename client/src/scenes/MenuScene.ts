@@ -20,7 +20,7 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     playBtn.on('pointerdown', () => {
-      this.scene.start('HeroSelectScene');
+      this.scene.start('LobbyScene');
     });
 
     playBtn.on('pointerover', () => playBtn.setColor('#fff'));

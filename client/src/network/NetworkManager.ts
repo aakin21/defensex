@@ -78,7 +78,7 @@ class NetworkManagerClass {
   async joinLobby(code: string): Promise<{ ok: boolean; msg: string }> {
     try {
       const rooms = await this.client.getAvailableRooms('lobby');
-      const target = rooms.find(r => (r.metadata as { code?: string })?.code === code.toUpperCase());
+      const target = rooms.find((r: { metadata?: unknown; roomId: string }) => (r.metadata as { code?: string })?.code === code.toUpperCase());
       if (!target) return { ok: false, msg: 'Oda bulunamadı' };
       this._lobbyRoom = await this.client.joinById(target.roomId);
       return { ok: true, msg: '' };

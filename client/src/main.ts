@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { LoginScene } from './scenes/LoginScene';
 import { MenuScene } from './scenes/MenuScene';
+import { LobbyScene } from './scenes/LobbyScene';
 import { HeroSelectScene } from './scenes/HeroSelectScene';
 import { GameScene } from './scenes/GameScene';
 import { GameOverScene } from './scenes/GameOverScene';
@@ -12,7 +13,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 854,
   backgroundColor: '#1a1a2e',
   parent: undefined,
-  scene: [BootScene, LoginScene, MenuScene, HeroSelectScene, GameScene, GameOverScene],
+  scene: [BootScene, LoginScene, MenuScene, LobbyScene, HeroSelectScene, GameScene, GameOverScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

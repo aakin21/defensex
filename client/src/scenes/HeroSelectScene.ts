@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { HERO_CONFIGS, HERO_TYPES } from '../entities/HeroConfig';
 import type { HeroType } from '../entities/HeroConfig';
+import { NetworkManager } from '../network/NetworkManager';
 
 const CARD_W = 130;
 const CARD_H = 190;
@@ -41,7 +42,15 @@ export class HeroSelectScene extends Phaser.Scene {
       padding: { x: 24, y: 10 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-    btn.on('pointerdown', () => {
+    btn.on('pointerdown', async () => {
+      // Eğer lobby bağlantısı varsa server'a join game gönder
+      if (NetworkManager.lobbyRoom) {
+        const result = await NetworkManager.joinGame(this.selectedHero);
+        if (!result.ok) {
+          // Bağlanamazsa offline devam et
+          console.warn('Game join failed:', result.msg);
+        }
+      }
       this.scene.start('GameScene', { heroType: this.selectedHero });
     });
 

@@ -24,6 +24,24 @@ import { BOT_CONFIGS } from '../entities/BotUnit';
 import type { HeroType } from '../entities/HeroConfig';
 import type { BotUnitType } from '../entities/BotUnit';
 import type { Building } from '../entities/Building';
+import { NetworkManager } from '../network/NetworkManager';
+
+// Uzak oyuncunun basit görsel temsili
+class RemoteHero extends Phaser.GameObjects.Container {
+  private bodyCircle: Phaser.GameObjects.Arc;
+  private label: Phaser.GameObjects.Text;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, color: number, name: string) {
+    super(scene, x, y);
+    this.bodyCircle = scene.add.arc(0, 0, 18, 0, 360, false, color, 0.9);
+    this.label = scene.add.text(0, -28, name, {
+      fontSize: '11px', color: '#ffffff', backgroundColor: '#00000088', padding: { x: 3, y: 2 },
+    }).setOrigin(0.5);
+    this.add([this.bodyCircle, this.label]);
+    scene.add.existing(this as unknown as Phaser.GameObjects.GameObject);
+    this.setDepth(20);
+  }
+}
 
 const ZOOM_MIN  = 0.5;
 const ZOOM_MAX  = 1.5;
@@ -69,6 +87,9 @@ export class GameScene extends Phaser.Scene {
   // Bina yerleştirme ghost önizlemesi
   private ghostGfx!: Phaser.GameObjects.Graphics;
 
+  // Multiplayer — uzak oyuncular
+  private remoteHeroes: Map<string, RemoteHero> = new Map();
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -104,12 +125,59 @@ export class GameScene extends Phaser.Scene {
     // Hızlı komut balonunu hero yanında göster
     this.hud.onQuickCommand = (cmd) => this.showQuickCommandBalloon(cmd);
 
-    this.abilityButton.onPress = () => this.hero.useAbility();
+    this.abilityButton.onPress = () => {
+      this.hero.useAbility();
+      NetworkManager.sendHeroAbility();
+    };
     this.buildingSystem.onPlaceFailed = (msg) => this.showNotification(msg);
 
     this.setupBuildingInput();
     this.setupBotInput();
     this.setupPinchZoom();
+    this.setupMultiplayer();
+  }
+
+  // ---- Multiplayer Wiring ----
+
+  private setupMultiplayer() {
+    const room = NetworkManager.gameRoom;
+    if (!room) return; // offline mode
+
+    // Diğer oyuncuların hero'larını dinle
+    const players = (room.state as { players?: unknown }).players;
+    if (players && typeof (players as { onAdd?: unknown }).onAdd === 'function') {
+      (players as {
+        onAdd: (cb: (player: { id: string; x: number; y: number; heroType: string; username: string; isDead: boolean }, key: string) => void) => void;
+        onRemove: (cb: (_p: unknown, key: string) => void) => void;
+      }).onAdd((player, key) => {
+        // Kendi hero'muzu atla
+        if (key === room.sessionId) return;
+        const color = 0x00cc88;
+        const remote = new RemoteHero(this, player.x, player.y, color, player.username ?? key.slice(0, 6));
+        this.remoteHeroes.set(key, remote);
+      });
+
+      (players as {
+        onAdd: (cb: (player: unknown, key: string) => void) => void;
+        onRemove: (cb: (_p: unknown, key: string) => void) => void;
+      }).onRemove((_p, key) => {
+        const r = this.remoteHeroes.get(key);
+        if (r) { r.destroy(); this.remoteHeroes.delete(key); }
+      });
+    }
+
+    // Sunucudan gelen mesajlar
+    room.onMessage('notification', (data: { msg: string }) => {
+      this.showNotification(data.msg);
+    });
+
+    room.onMessage('game_over', (data: { wave: number }) => {
+      this.triggerGameOver(data.wave);
+    });
+
+    room.onMessage('wave_start', (data: { waveNo: number }) => {
+      this.waveNumber = data.waveNo;
+    });
   }
 
   // ---- Harita ----
@@ -209,6 +277,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.buildingSystem.placeBuilding(world.x, world.y, selected);
+      NetworkManager.sendBuyBuilding(selected, world.x, world.y);
       this.buildingMenu.deselect();
       this.ghostGfx.clear();
     });
@@ -277,6 +346,7 @@ export class GameScene extends Phaser.Scene {
 
       const world = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
       this.economy.spend(cfg.cost);
+      NetworkManager.sendBuyBot(this.placingBotType!, world.x, world.y);
 
       const bot = new BotUnit(this, world.x, world.y, cfg);
       this.botUnits.push(bot);
@@ -361,6 +431,9 @@ export class GameScene extends Phaser.Scene {
   // ---- Phase Yönetimi (client-side placeholder) ----
 
   private updatePhase(delta: number) {
+    // Server bağlıysa phase server'dan gelir — sadece offline modda çalıştır
+    if (NetworkManager.gameRoom) return;
+
     if (this.gamePhase === 'prep') {
       this.prepTimeLeftMs -= delta;
       if (this.prepTimeLeftMs <= 0) {
@@ -368,7 +441,6 @@ export class GameScene extends Phaser.Scene {
         this.prepTimeLeftMs = 0;
         this.enemySystem.startWave(this.waveNumber);
         this.enemySystem.onWaveCleared = () => {
-          // Wave bonus
           const bonus = 50 + this.waveNumber * 10;
           this.economy.earn(bonus);
           this.waveNumber++;
@@ -385,6 +457,7 @@ export class GameScene extends Phaser.Scene {
     // Hero hareketi
     if (this.joystick.isActive) {
       this.hero.move(this.joystick.dx, this.joystick.dy, delta);
+      NetworkManager.sendHeroMove(this.joystick.dx, this.joystick.dy, delta);
     }
 
     this.hero.update(delta);
@@ -420,6 +493,9 @@ export class GameScene extends Phaser.Scene {
     // Phase
     this.updatePhase(delta);
 
+    // Multiplayer state sync
+    this.syncServerState();
+
     // HUD güncelle
     this.hud.update({
       heroHp:          this.hero.hp,
@@ -441,8 +517,56 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  private triggerGameOver() {
+  // ---- Server State Sync ----
+
+  private syncServerState() {
+    const room = NetworkManager.gameRoom;
+    if (!room) return;
+
+    const state = room.state as {
+      sharedGold?: number;
+      phase?: string;
+      prepTimer?: number;
+      currentWave?: number;
+      baseHP?: number;
+      players?: Map<string, { x: number; y: number; isDead: boolean; username: string }>;
+    };
+
+    // Altın sync
+    if (state.sharedGold !== undefined) {
+      this.economy.setGold(state.sharedGold);
+    }
+
+    // Phase sync
+    if (state.phase === 'prep' || state.phase === 'wave') {
+      this.gamePhase = state.phase;
+    }
+    if (state.prepTimer !== undefined) this.prepTimeLeftMs = state.prepTimer;
+    if (state.currentWave !== undefined) this.waveNumber = state.currentWave;
+    if (state.baseHP !== undefined) this.baseHp = state.baseHP;
+
+    // Uzak hero pozisyonları sync
+    if (state.players) {
+      for (const [key, p] of state.players) {
+        if (key === room.sessionId) continue;
+        const remote = this.remoteHeroes.get(key);
+        if (remote) {
+          remote.x = p.x;
+          remote.y = p.y;
+          remote.setAlpha(p.isDead ? 0.3 : 1);
+        }
+      }
+    }
+  }
+
+  private triggerGameOver(wave?: number) {
     this.enemySystem.clearAll();
-    this.scene.start('GameOverScene', { wave: this.waveNumber });
+    NetworkManager.leaveGame();
+    this.scene.start('GameOverScene', {
+      wave:        wave ?? this.waveNumber,
+      kills:       0,
+      deaths:      0,
+      damageDealt: 0,
+    });
   }
 }
