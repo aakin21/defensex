@@ -60,13 +60,15 @@
 - [x] Konuşlandırma sistemi (BotMenu, limit 10, altın kontrolü)
 
 ### Faz 8 — Multiplayer Görsel Sync
+- [x] colyseus.js client kurulumu
+- [x] NetworkManager.ts — login/register REST, lobby join/create, game join, mesaj gönderme
+- [ ] LobbyScene — oda oluştur/katıl UI, bekleme odası
+- [ ] GameScene multiplayer wiring — server state'den hero/enemy/building sync
 - [ ] Diğer oyuncuların herolarını render et
-- [ ] Tüm state değişikliklerini Colyseus'tan dinle ve görselleştir
-- [ ] ⏳ BEKLE: Claude → tüm state şemaları hazır olsun
 
 ### Faz 9 — Ekranlar & Bitiş
-- [ ] Login / kayıt ekranı
-- [ ] Bekleme odası ekranı
+- [x] Login / kayıt ekranı (LoginScene.ts — HTML form, REST auth)
+- [ ] Bekleme odası ekranı (LobbyScene)
 - [ ] GameOver + istatistik ekranı
 - [ ] Ses & müzik entegrasyonu
 - [ ] Capacitor mobil build (iOS + Android)
@@ -122,3 +124,4 @@
 | 2026-04-13 | Faz 7 bitti: BotUnit (Warrior patrol + Defender sabit), BotMenu, limit/altın kontrolü |
 | 2026-04-13 | SERVER Faz 1-5 bitti: Colyseus server, LobbyRoom, GameRoom, shared/types, A* pathfinding, WaveSpawner, auth REST+JWT+SQLite |
 | 2026-04-13 | CLIENT Faz 5 bitti: Enemy entity, EnemySystem, wave spawn, AI görüş konisi, şaman aura, GameOver tetikleme |
+| 2026-04-13 | CLIENT Faz 8-9 kısmi: NetworkManager (Colyseus client), LoginScene (HTML form, REST auth) |
