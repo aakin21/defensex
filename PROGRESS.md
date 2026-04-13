@@ -71,15 +71,40 @@
 
 ---
 
-## SERVER (Claude)
+## SERVER (Claude Alps)
 
 ### Faz 1 — Server İskeleti
-- [ ] `server/` klasörü: Colyseus kurulumu
-- [ ] `shared/` klasörü: Ortak tip tanımları
-- [ ] LobbyRoom
-- [ ] GameRoom: temel state şeması
+- [x] `server/` klasörü: Colyseus kurulumu, TypeScript config
+- [x] `shared/types.ts`: Ortak tip tanımları (PlayerState, EnemyState, BuildingState, stats, wave formula, message types)
+- [x] LobbyRoom: 6-haneli oda kodu üretme, join/leave, chat relay
+- [x] GameRoom: GameState şeması (players, enemies, buildings, botUnits, sharedGold, wave, baseHP, phase, prepTimer)
+- [x] GameRoom: oyuncu join/leave, hero type seçimi
 
-_(diğer fazlar server tarafı tarafından güncellenir)_
+### Faz 2 — Oyun State & Ekonomi
+- [x] Ortak altın havuzu (GameState.sharedGold = 200)
+- [x] Altın kazanım sistemi (öldürme ödülleri + wave bonus)
+- [x] Bina/bot satın alma mesajları işlendi (buy_building, upgrade_building, buy_bot)
+
+### Faz 3 — Düşman & Wave
+- [x] Düşman state şeması (EnemyState)
+- [x] WaveSpawner: wave formula, staggered spawn, harita kenar noktaları
+- [x] A* pathfinding (AStarPathfinder.ts, terrain cost ağırlıklı)
+- [x] Görüş açısı AI sistemi (SIGHT=300px, öncelik: bina→bot→hero→base)
+- [x] Duvar/bina yıkma davranışı
+- [x] 4 düşman türü (Warrior, Runner, Tank, Shaman)
+- [x] Wave skalası formülü (getWaveComposition)
+- [x] Prep fazı timer (30sn)
+
+### Faz 4 — Savaş Sync
+- [x] Hero hasar alma / ölüm / respawn server-side (10sn timer)
+- [x] Bot unit savaş mantığı server-side
+- [x] Bina hasar / yıkılma server-side (ArcherTower, Mortar AoE, Laser sürekli hasar)
+- [x] Ana base HP takibi, GameOver tetikleme
+
+### Faz 5 — Login & İstatistik
+- [x] Login / kayıt REST endpoint (/api/auth/register, /api/auth/login)
+- [x] JWT token yönetimi
+- [x] Session istatistikleri SQLite'a kaydedildi (/api/auth/stats)
 
 ---
 
@@ -93,3 +118,4 @@ _(diğer fazlar server tarafı tarafından güncellenir)_
 | 2026-04-13 | Faz 4 bitti: bina sistemi, duvar çizimi, upgrade popup, ekonomi sistemi |
 | 2026-04-13 | Faz 6 bitti: HUD (hero HP, altın, wave, base HP bar, prep timer, hızlı komutlar) |
 | 2026-04-13 | Faz 7 bitti: BotUnit (Warrior patrol + Defender sabit), BotMenu, limit/altın kontrolü |
+| 2026-04-13 | SERVER Faz 1-5 bitti: Colyseus server, LobbyRoom, GameRoom, shared/types, A* pathfinding, WaveSpawner, auth REST+JWT+SQLite |
