@@ -9,6 +9,7 @@ import {
 import { BuildingSystem } from '../systems/BuildingSystem';
 import { WallDrawSystem } from '../systems/WallDrawSystem';
 import { EconomySystem } from '../systems/EconomySystem';
+import { EnemySystem } from '../systems/EnemySystem';
 import { Minimap } from '../ui/Minimap';
 import { Joystick } from '../ui/Joystick';
 import { AbilityButton } from '../ui/AbilityButton';
@@ -36,6 +37,7 @@ export class GameScene extends Phaser.Scene {
   private buildingSystem!: BuildingSystem;
   private wallDraw!:       WallDrawSystem;
   private economy!:        EconomySystem;
+  private enemySystem!:    EnemySystem;
 
   private minimap!:        Minimap;
   private joystick!:       Joystick;
@@ -80,6 +82,7 @@ export class GameScene extends Phaser.Scene {
     this.mapSystem      = new MapSystem();
     this.buildingSystem = new BuildingSystem(this, this.mapSystem, this.economy);
     this.wallDraw       = new WallDrawSystem(this);
+    this.enemySystem    = new EnemySystem(this, this.economy);
 
     this.renderMap();
     this.placeBase();
@@ -361,13 +364,19 @@ export class GameScene extends Phaser.Scene {
     if (this.gamePhase === 'prep') {
       this.prepTimeLeftMs -= delta;
       if (this.prepTimeLeftMs <= 0) {
-        this.gamePhase = 'wave';
+        this.gamePhase      = 'wave';
         this.prepTimeLeftMs = 0;
-        // Wave başlayınca düşmanlar server'dan gelecek
+        this.enemySystem.startWave(this.waveNumber);
+        this.enemySystem.onWaveCleared = () => {
+          // Wave bonus
+          const bonus = 50 + this.waveNumber * 10;
+          this.economy.earn(bonus);
+          this.waveNumber++;
+          this.gamePhase      = 'prep';
+          this.prepTimeLeftMs = 30_000;
+        };
       }
     }
-    // wave fazı: enemiesLeft server'dan güncellenecek
-    // wave biter → prep fazı, waveNumber++
   }
 
   // ---- Update ----
@@ -381,6 +390,22 @@ export class GameScene extends Phaser.Scene {
     this.hero.update(delta);
     this.abilityButton.updateCooldown(this.hero.getAbilityCooldownRatio());
 
+    // Düşman hedef listesi (bina + bot + hero + base)
+    const enemyTargets = [
+      ...this.buildingSystem.buildings,
+      ...this.buildingSystem.walls,
+      ...this.botUnits.filter(b => !b.isDead),
+      { x: this.hero.x, y: this.hero.y, takeDamage: (n: number) => this.hero.takeDamage(n), isDead: this.hero.isDead },
+      { x: BASE_X, y: BASE_Y, takeDamage: (n: number) => { this.baseHp = Math.max(0, this.baseHp - n); if (this.baseHp === 0) this.triggerGameOver(); }, isDead: false },
+    ];
+
+    // Düşman sistemi
+    this.enemySystem.update(delta, enemyTargets);
+    this.enemiesLeft = this.enemySystem.getCount();
+
+    // Hero auto-attack
+    this.hero.tryAttack(this.enemySystem.getAlive(), delta);
+
     // Bot unit güncellemeleri
     this.botUnits = this.botUnits.filter(b => !b.isDead);
     for (const bot of this.botUnits) {
@@ -388,7 +413,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Binalar
-    this.buildingSystem.update(delta, []);
+    this.buildingSystem.update(delta, this.enemySystem.getAlive());
     this.buildingMenu.update();
     this.botMenu.update();
 
@@ -412,7 +437,12 @@ export class GameScene extends Phaser.Scene {
     this.minimap.update(
       [{ x: this.hero.x, y: this.hero.y }],
       this.buildingSystem.getBuildingPositions(),
-      [],
+      this.enemySystem.getAlive().map(e => ({ x: e.x, y: e.y })),
     );
+  }
+
+  private triggerGameOver() {
+    this.enemySystem.clearAll();
+    this.scene.start('GameOverScene', { wave: this.waveNumber });
   }
 }

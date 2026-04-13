@@ -38,10 +38,12 @@
 - [ ] ⏳ BEKLE: Claude → satın alma mesajları server'da hazır olsun
 
 ### Faz 5 — Düşman Görseli
-- [ ] 4 düşman türü görseli + animasyon
-- [ ] HP bar (düşman üstünde)
-- [ ] Ölüm animasyonu
-- [ ] ⏳ BEKLE: Claude → düşman state şeması hazır olsun
+- [x] 4 düşman türü görseli (placeholder renkli şekiller — asset gelince değişecek)
+- [x] HP bar (düşman üstünde, kırmızı tonları)
+- [x] Ölüm animasyonu (büyüyüp kaybol tween)
+- [x] Görüş konisi AI (120°, 300px), şaman aura (75px regen)
+- [x] EnemySystem: wave spawn, altın kazanımı, GameOver tetikleme
+- [x] shared/types.ts EnemyStats entegrasyonu
 
 ### Faz 6 — HUD & UI
 - [x] Oyuncu HP barları (sol üst, hero panel)
@@ -119,3 +121,4 @@
 | 2026-04-13 | Faz 6 bitti: HUD (hero HP, altın, wave, base HP bar, prep timer, hızlı komutlar) |
 | 2026-04-13 | Faz 7 bitti: BotUnit (Warrior patrol + Defender sabit), BotMenu, limit/altın kontrolü |
 | 2026-04-13 | SERVER Faz 1-5 bitti: Colyseus server, LobbyRoom, GameRoom, shared/types, A* pathfinding, WaveSpawner, auth REST+JWT+SQLite |
+| 2026-04-13 | CLIENT Faz 5 bitti: Enemy entity, EnemySystem, wave spawn, AI görüş konisi, şaman aura, GameOver tetikleme |
